@@ -25,6 +25,12 @@ Every primer pair was checked against all 15 genomes (both sites found, at most 
 - **c22-8:** both primers were confirmed in a flanked ME49 sequence (521 bp product). The other strains' references are 491–492 bp genome regions that span the stretch between the primers plus a few bases of each primer site.
 - **PK1 and BTUB** references are ToxoDB transcript or gene sequences without flanks; both primer sites lie inside them, and the products match the published sizes.
 
+**Nested PCR:** Settings has a "Reads come from the inner (nested) PCR" option. For SAG1 and alt.SAG2, which have known inner primers, it compares between the inner primers instead of the outer ones.
+
+**Multi-sequence FASTA files** (for example a GenBank download) are read record by record: the sample name comes from the record title (the "isolate …" part when present), and records without a forward/reverse label are treated as finished sequences, one row each.
+
+**Test against published data:** `test/study_battisti2018.js` re-analyses the GenBank sequences of Battisti et al. 2018 (Vet Parasitol 253:43–47; MG587956–MG588017) and compares the calls with the paper's Table 2. Download the sequences to `data/study/seqs.fasta` first.
+
 When several references are identical over the compared region, the call shows the first name in panel order, and the others are listed as identical ("Type I = 5 more").
 
 ## How to use it
