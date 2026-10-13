@@ -219,6 +219,8 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
         <dd class="row"><input type="number" id="optMott" step="0.01" min="0.001" max="0.5" value="0.05" style="width:6rem"><span class="muted" style="font-size:.85rem">Mott's algorithm on .ab1 quality scores. 0.05 matches the Geneious default.</span></dd>
         <dt><label for="optRegion">Region compared</label></dt>
         <dd class="row"><select id="optRegion"><option value="auto">Between the PCR primers, when primers are known</option><option value="full">Full length shared by all references</option></select><span class="muted" style="font-size:.85rem">Use full length when your sequences span the whole gene (for example nanopore consensus sequences) and you want every difference counted.</span></dd>
+        <dt><label for="optNested">Nested PCR</label></dt>
+        <dd class="row"><label class="row" style="gap:6px"><input type="checkbox" id="optNested"> Reads come from the inner (nested) PCR</label><span class="muted" style="font-size:.85rem">For markers with known inner primers (SAG1, alt.SAG2), compare between the inner primers instead of the outer ones.</span></dd>
         <dt><label for="optPeak">Double-peak threshold</label></dt>
         <dd class="row"><input type="number" id="optPeak" step="0.05" min="0.1" max="0.9" value="0.33" style="width:6rem"><span class="muted" style="font-size:.85rem">Second-highest peak as a fraction of the highest. Above this, the base is written as an ambiguity code.</span></dd>
       </div>
@@ -505,7 +507,7 @@ function renderFiles() {
   $('#filesCount').textContent = `${reads.length} read(s)`;
   const byFile = new Map(state.plan.reads.map(r => [r.fileName + '|' + r.recName, r]));
   const rows = state.plan.reads.filter(r => !r.isRef).map((r, k) => `<tr><td class="mono" style="font-size:.82rem;overflow-wrap:anywhere">${esc(r.fileName)}${r.recName !== r.fileName ? `<br><span class="muted">${esc(r.recName)}</span>` : ''}</td>
-    <td><input type="text" id="sn-${k}" data-f="${esc(r.fileName)}" value="${esc(r.sample)}" aria-label="Sample name for ${esc(r.fileName)}"></td>
+    <td><input type="text" id="sn-${k}" data-f="${esc(r.key || r.fileName)}" value="${esc(r.sample)}" aria-label="Sample name for ${esc(r.multi ? r.recName : r.fileName)}"></td>
     <td>${esc(r.marker || '—')}</td><td>${r.dir === 'F' ? 'Forward' : r.dir === 'R' ? 'Reverse' : '—'}</td><td>${r.format === 'ab1' ? (r.traces ? 'chromatogram' : 'ab1, no trace') : 'text'}</td>
     <td style="font-size:.85rem;color:var(--warn)">${esc(r.notes.join(' '))}</td></tr>`).join('');
   $('#filesTable').innerHTML = `<thead><tr><th>File</th><th>Sample</th><th>Marker</th><th>Read</th><th>Type</th><th>Note</th></tr></thead><tbody>${rows}</tbody>`;
@@ -591,7 +593,7 @@ function copy(text, msg) {
 $('#applySettings').onclick = () => {
   const m = parseFloat($('#optMott').value), p = parseFloat($('#optPeak').value);
   if (!(m > 0 && m < 1) || !(p > 0 && p < 1)) { toast('Both settings must be between 0 and 1'); return; }
-  opts.mottCutoff = m; opts.peakRatio = p; opts.region = $('#optRegion').value; rebuildPanel(); renderRefs(); run(); toast('Settings applied');
+  opts.mottCutoff = m; opts.peakRatio = p; opts.region = $('#optRegion').value; opts.nested = $('#optNested').checked; rebuildPanel(); renderRefs(); run(); toast('Settings applied');
 };
 
 /* ---------- Wiring ---------- */

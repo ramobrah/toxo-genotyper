@@ -64,8 +64,9 @@ function parseFile(fileName, arrayBuffer) {
   const text = new TextDecoder().decode(u8);
   const recs = parseFasta(text);
   if (!recs.length) throw new Error('Could not read any sequence from this file');
-  return recs.map(r => ({ fileName, recName: r.header || fileName, header: r.header, format: 'text',
-    seq: r.seq, qual: null, traces: null, ploc: null }));
+  const multi = recs.length > 1;
+  return recs.map((r, i) => ({ fileName, recName: r.header || fileName, header: r.header, format: 'text', multi,
+    key: multi ? fileName + '|' + i : fileName, seq: r.seq, qual: null, traces: null, ploc: null }));
 }
 
 /* ---------- Quality trimming (Mott's modified algorithm, as in phred/Geneious/sangeranalyseR) ---------- */
@@ -233,7 +234,8 @@ function buildPanel(refs, primers = {}, opts = {}) {
   const markers = {};
   refs.forEach((r, i) => (markers[r.marker] = markers[r.marker] || { name: r.marker, refs: [] }).refs.push({ ...r, seq: cleanSeq(r.seq), order: i })); // order = position in the panel file, used to pick display names
   for (const mk of Object.values(markers)) {
-    const pr = primers[mk.name] || null;
+    const pr0 = primers[mk.name] || null;
+    const pr = pr0 && opts.nested && pr0.nested ? { ...pr0.nested, outer: pr0 } : pr0; // nested setting: compare between the inner primers
     mk.primers = pr;
     mk.region = pr && region !== 'full' ? 'primers' : 'full';
     // anchor: prefer a reference that contains both primer sites, oriented so the forward primer reads forward
@@ -535,13 +537,21 @@ function isCoveredRefPos(cons, comp, rp) { return !comp.uncoveredSet || !comp.un
  * Main entry. files: [{fileName, reads:[parsed read objects]}]; panel from buildPanel.
  * overrides: {fileName: {sample, marker}} user edits.
  */
+/** Name to interpret for a record from a multi-sequence FASTA (e.g. a GenBank download): drop the accession and
+ *  organism, prefer the "isolate ..." token, and drop plate-well suffixes such as _G1_G2. */
+function recordName(header) {
+  let h = header.replace(/^\S+\.\d+\s+/, '').replace(/^Toxoplasma gondii\s*/i, '');
+  const iso = h.match(/(?:isolate|strain)\s+(\S+)/i);
+  if (iso) h = iso[1];
+  return h.replace(/_[A-H]\d{1,2}_[A-H]\d{1,2}(?=_|$)/i, '');
+}
 function planGroups(readsIn, panel, opts = {}, overrides = {}) {
   opts = { ...DEFAULTS, ...opts };
   const markerNames = Object.keys(panel.markers);
   const reads = [], problems = [];
   for (const raw of readsIn) {
-    const nm = interpretName(raw.fileName, markerNames);
-    const ov = overrides[raw.fileName] || {};
+    const nm = interpretName(raw.multi ? recordName(raw.recName) : raw.fileName, markerNames);
+    const ov = overrides[raw.key || raw.fileName] || {};
     const asg = assignMarker(raw, panel);
     const r = { ...raw, parsed: nm, sample: ov.sample ?? nm.sample, dir: nm.dir, isRef: ov.isRef ?? nm.isRef,
       marker: ov.marker || (asg && asg.score >= opts.minKmers ? asg.marker : null) || nm.marker, kmerScore: asg ? asg.score : 0, notes: [] };
@@ -558,13 +568,22 @@ function planGroups(readsIn, panel, opts = {}, overrides = {}) {
     if (!groups.has(key)) groups.set(key, { sample: r.sample, marker: r.marker, reads: [] });
     groups.get(key).reads.push(r);
   }
-  return { reads, problems, groups: [...groups.values()], opts };
+  // Records from a multi-sequence FASTA with no forward/reverse label are finished sequences (e.g. from GenBank):
+  // never merge two of them as if they were a read pair; give each its own row instead.
+  const out = [];
+  for (const g of groups.values()) {
+    const loose = g.reads.filter(r => r.multi && !r.dir);
+    if (loose.length > 1 && loose.length === g.reads.length) {
+      for (const r of loose) out.push({ sample: g.sample + ' (' + r.recName.split(/\s/)[0] + ')', marker: g.marker, reads: [r] });
+    } else out.push(g);
+  }
+  return { reads, problems, groups: out, opts };
 }
 function analyzeGroup(g, panel, opts) {
   opts = { ...DEFAULTS, ...opts };
   {
     const mk = panel.markers[g.marker];
-    const res = { sample: g.sample, marker: g.marker, files: g.reads.map(r => r.fileName), flags: [], notes: [] };
+    const res = { sample: g.sample, marker: g.marker, files: g.reads.map(r => r.multi ? r.recName.split(/\s/)[0] : r.fileName), flags: [], notes: [] };
     let prepared = g.reads.map(r => prepareRead(r, mk, opts));
     for (const p of prepared) {
       if (p.trimmed) p.notes.push(`Quality trimmed to ${p.trimmed[0] + 1}–${p.trimmed[1]} of ${p.rawLen} bases.`);
@@ -603,6 +622,6 @@ function analyze(readsIn, panel, opts = {}, overrides = {}) {
 }
 
 const API = { IUPAC, revcomp, cleanSeq, parseABIF, parseFasta, parseFile, mottTrim, secondaryPeaks, align, buildPanel, panelFromFasta,
-  interpretName, sampleKey, findPrimer, locatePrimers, analyze, planGroups, analyzeGroup, sortResults, DEFAULTS, encode, isAmb, setOf };
+  interpretName, recordName, sampleKey, findPrimer, locatePrimers, analyze, planGroups, analyzeGroup, sortResults, DEFAULTS, encode, isAmb, setOf };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.MLST = API;
 })(typeof window !== 'undefined' ? window : globalThis);

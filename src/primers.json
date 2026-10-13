@@ -26,7 +26,12 @@
  "SAG1": {
   "fwd": "GTTCTAACCACGCACCCTGAG",
   "rev": "AAGAGTGGGAGGCTCTGTGA",
-  "source": "Provided by Omar Harb from the lab protocol (Oct 2026)"
+  "source": "Provided by Omar Harb from the lab protocol (Oct 2026)",
+  "nested": {
+   "fwd": "CAATGTGCACCTGTAGGAAGC",
+   "rev": "GTGGTTCTCCGTCGGTGTGAG",
+   "source": "Su et al. 2010 inner primers, as listed in Battisti et al. 2018 Table 1"
+  }
  },
  "alt.SAG2": {
   "fwd": "GGAACGCGAACAATGAGTTT",
