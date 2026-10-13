@@ -27,6 +27,7 @@
   --ok:#6BC17B; --ok-soft:#173222; --warn:#E2B04F; --warn-soft:#3A2D12; --bad:#F07B70; --bad-soft:#3F1B18; --info:#8FA9D8; --info-soft:#1D2A40;
   --bA:#4CC56A; --bC:#6E9BF5; --bG:#E4EBE7; --bT:#F26A5E; color-scheme:dark }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:flex;flex-direction:column;gap:28px}
@@ -164,7 +165,6 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
     <div class="acts">
       <button class="primary" id="pickFiles">Choose files</button>
       <button id="pickFolder">Choose folder</button>
-      <button id="loadExample">Load example PK1 reads</button>
       <input type="file" id="fileInput" multiple hidden accept=".ab1,.abi,.fasta,.fa,.fas,.seq,.txt,.zip">
       <input type="file" id="folderInput" webkitdirectory multiple hidden>
     </div>
@@ -173,7 +173,7 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
 
   <section id="resultsSec" hidden style="display:flex;flex-direction:column;gap:14px">
     <div class="row" style="justify-content:space-between">
-      <div class="row" style="gap:14px"><div class="summary" id="summary"></div><span class="panelbadge" id="exampleNote" hidden>Example data: PK1 test reads</span></div>
+      <div class="summary" id="summary"></div>
       <div class="row">
         <button id="copyTable" title="Copy the allele table, then paste into Excel">Copy table</button>
         <button id="dlSummary" class="primary">Download allele table (.csv)</button>
@@ -242,7 +242,6 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
 <script>
 const BUILTIN_PANEL = /*PANEL*/;
 const BUILTIN_PRIMERS = /*PRIMERS*/;
-const EXAMPLE_READS = /*EXAMPLE*/;
 </script>
 <script>
 (() => {
@@ -299,8 +298,7 @@ async function expandFiles(files) {
   }
   return out;
 }
-async function addFiles(fileList, isExample) {
-  if (!isExample && !$('#exampleNote').hidden) { reads = []; overrides = {}; selected = null; $('#exampleNote').hidden = true; }
+async function addFiles(fileList) {
   const items = await expandFiles(fileList);
   if (!items.length) { toast('No sequence files found. Expected .ab1, .fasta or .seq files.'); return; }
   let added = 0, refAdded = 0; const errors = [];
@@ -578,7 +576,7 @@ $('#dlDetails').onclick = () => {
   save('mlst_details.csv', rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 };
 $('#dlFasta').onclick = () => save('mlst_consensus.fasta', state.results.filter(r => r.consensus).map(r => `>${r.sample.replace(/\s+/g, '_')}_${r.marker} call=${r.call.replace(/\s+/g, '_')}\n${r.consensus.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
-$('#clearAll').onclick = () => { $('#exampleNote').hidden = true; reads = []; overrides = {}; state = null; selected = null; run(); };
+$('#clearAll').onclick = () => { reads = []; overrides = {}; state = null; selected = null; run(); };
 
 async function save(name, text) {
   const dl = window.claude && window.claude.use ? await window.claude.use('downloads').catch(() => null) : null;
@@ -607,15 +605,9 @@ $('#pickFiles').onclick = () => $('#fileInput').click();
 $('#pickFolder').onclick = () => $('#folderInput').click();
 $('#fileInput').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
 $('#folderInput').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
-$('#loadExample').onclick = () => {
-  reads = []; overrides = {}; selected = null; $('#exampleNote').hidden = false;
-  const enc = new TextEncoder();
-  addFiles(EXAMPLE_READS.map(x => ({ name: x.name, arrayBuffer: async () => enc.encode(x.text).buffer })), true);
-};
 window.addEventListener('resize', () => { if (state && selected != null && state.results[selected] && state.results[selected].consensus) drawTraces(state.results[selected]); });
 
 panelBadge(); renderRefs();
-if (EXAMPLE_READS.length) $('#loadExample').click(); else $('#loadExample').hidden = true;
 })();
 </script>
 </body>
