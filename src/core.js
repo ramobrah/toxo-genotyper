@@ -237,6 +237,7 @@ function buildPanel(refs, primers = {}, opts = {}) {
     const pr0 = primers[mk.name] || null;
     const pr = pr0 && opts.nested && pr0.nested ? { ...pr0.nested, outer: pr0 } : pr0; // nested setting: compare between the inner primers
     mk.primers = pr;
+    mk.multiCopy = !!(pr0 && pr0.multiCopy);
     mk.region = pr && region !== 'full' ? 'primers' : 'full';
     // anchor: prefer a reference that contains both primer sites, oriented so the forward primer reads forward
     let anchor = mk.refs[0];
@@ -291,7 +292,11 @@ function buildPanel(refs, primers = {}, opts = {}) {
     const seen = new Map();
     for (const r of [...mk.refs].sort((a, b) => a.order - b.order)) { const k = r.seq.slice(r.win[0], r.win[1] + 1); if (!seen.has(k)) seen.set(k, r); r.rep = seen.get(k); }
     mk.alleles = [...seen.values()];
-    mk.pos = p => p - mk.window[0] + 1; // positions are numbered from the start of the compared region
+    mk.pos = p => p - mk.window[0] + 1;
+    if (pr0 && pr0.numbering) { // published coordinate system, e.g. B1 positions as in Zhu et al. 2023
+      const nr = mk.refs.find(r => r.name === pr0.numbering.ref);
+      if (nr) { const off = pr0.numbering.offset || 0; mk.posNote = pr0.numbering.note; mk.pos = p => { let q = p; while (q < nr.fromAnchor.length && nr.fromAnchor[q] < 0) q++; return q < nr.fromAnchor.length ? nr.fromAnchor[q] + 1 + off : p - mk.window[0] + 1; }; }
+    } // positions are numbered from the start of the compared region
     mk.primerSummary = pr ? { multi: mk.refs.filter(r => r.primerHits && r.primerHits.extraSites > 0).length, products: [...new Set(mk.refs.map(r => r.primerHits && r.primerHits.product).filter(Boolean))].sort((a, b) => a - b), found: mk.refs.filter(r => r.primerHits && r.primerHits.fwd && r.primerHits.rev).length, oneSide: mk.refs.filter(r => r.primerHits && !!r.primerHits.fwd !== !!r.primerHits.rev).length, total: mk.refs.length } : null;
     mk.sites = [];
     for (let p = mk.window[0]; p <= mk.window[1]; p++) {
@@ -387,7 +392,7 @@ function prepareRead(raw, mk, opts) {
   return o;
 }
 
-function buildConsensus(reads) {
+function buildConsensus(reads, opt = {}) {
   if (reads.length === 1) {
     const r = reads[0];
     return { seq: r.work, cols: [...r.work].map((b, k) => ({ base: b, cov: 1, status: isAmb(b) ? 'ambiguous' : 'single', src: [[0, r.idx[k]]] })) };
@@ -402,7 +407,7 @@ function buildConsensus(reads) {
     const src = []; if (i >= 0) src.push([0, a.idx[i]]); if (j >= 0) src.push([1, b.idx[j]]);
     if (x && y) {
       if (x === y) cols.push({ base: x, cov: 2, status: x === 'N' ? 'unresolved' : (isAmb(x) ? 'mixed' : 'agree'), src });
-      else if (compatible(x, y) && (setOf(x).length === 1 || setOf(y).length === 1)) {
+      else if (!opt.strictAmbiguity && compatible(x, y) && (setOf(x).length === 1 || setOf(y).length === 1)) {
         const clean = setOf(x).length === 1 ? x : y;
         cols.push({ base: clean, cov: 2, status: 'resolved', other: clean === x ? y : x, src });
       } else cols.push({ base: 'N', cov: 2, status: 'conflict', pair: x + '/' + y, src });
@@ -420,7 +425,7 @@ function compareToRef(cons, ref, mk) {
   const al = align(ref.seq, cons.seq);
   const [ws, we] = ref.win;
   const diffs = []; let uncovered = 0, unresolved = [], ambCompat = [], singleCov = 0, covered = 0;
-  const uncoveredSet = new Set(); const refToCons = new Array(ref.seq.length).fill(-1); let lastCons = -1;
+  const tolerated = []; const uncoveredSet = new Set(); const refToCons = new Array(ref.seq.length).fill(-1); let lastCons = -1;
   const firstC = al.cols.findIndex(c => c[1] >= 0), lastC = al.cols.length - 1 - [...al.cols].reverse().findIndex(c => c[1] >= 0);
   let lastRefPos = -1;
   al.cols.forEach(([ri, ci], k) => {
@@ -441,19 +446,24 @@ function compareToRef(cons, ref, mk) {
     if (c === 'N') { unresolved.push({ refPos: ri, anchorPos, consPos: ci, ref: r, detail: col.pair || 'N' }); return; }
     if (c === r) return;
     if (col.status === 'indel-conflict') { unresolved.push({ refPos: ri, anchorPos, consPos: ci, ref: r, detail: c + ' in one read, missing in other' }); return; }
-    if (isAmb(c) && setOf(c).includes(r)) { ambCompat.push({ refPos: ri, anchorPos, consPos: ci, ref: r, cons: c }); return; }
+    if (mk.multiCopy && isAmb(r) && [...setOf(c)].every(b => setOf(r).includes(b))) {
+      // multi-copy marker: the reference shows a double peak here but the sample shows only part of it (a minor copy not detected)
+      tolerated.push({ refPos: ri, anchorPos, consPos: ci, ref: r, cons: c }); return;
+    }
+    if (!mk.multiCopy && isAmb(c) && setOf(c).includes(r)) { ambCompat.push({ refPos: ri, anchorPos, consPos: ci, ref: r, cons: c }); return; }
     diffs.push({ type: 'substitution', refPos: ri, anchorPos, consPos: ci, ref: r, cons: c, cov: col.cov });
   });
   // collapse adjacent indel columns into events
   let events = 0, prev = null;
   for (const d of diffs) { if (d.type === 'substitution' || !prev || prev.type !== d.type || Math.abs(d.refPos - prev.refPos) > 1) events++; prev = d; }
-  return { ref, diffs, events, uncovered, uncoveredSet, refToCons, unresolved, ambCompat, singleCov, covered, winLen: we - ws + 1 };
+  return { ref, diffs, events, tolerated, uncovered, uncoveredSet, refToCons, unresolved, ambCompat, singleCov, covered, winLen: we - ws + 1 };
 }
 
 function callAllele(cons, mk) {
   const comps = mk.refs.map(r => compareToRef(cons, r, mk));
-  comps.sort((a, b) => a.events - b.events || a.uncovered - b.uncovered || a.ref.order - b.ref.order);
-  const exact = comps.filter(c => c.events === 0);
+  comps.sort((a, b) => a.events - b.events || a.tolerated.length - b.tolerated.length || a.uncovered - b.uncovered || a.ref.order - b.ref.order);
+  let exact = comps.filter(c => c.events === 0);
+  if (mk.multiCopy && exact.length > 1) { const m = Math.min(...exact.map(c => c.tolerated.length)); exact = exact.filter(c => c.tolerated.length === m); }
   const flags = [];
   let call, status, sameAs = [];
   // which anchor positions discriminate among the candidate references?
@@ -496,7 +506,7 @@ function callAllele(cons, mk) {
   }
   if (unresAtSites.length) { flags.push({ level: 'warn', text: `${unresAtSites.length} position(s) that distinguish references have forward/reverse disagreement: ${unresAtSites.map(u => 'pos ' + mk.pos(u.anchorPos) + ' (' + u.detail + ')').join(', ')}.` }); if (status === 'ok') status = 'review'; }
   const refBase = (r, p) => r.fromAnchor[p] >= 0 ? r.seq[r.fromAnchor[p]] : '-';
-  const mixed = ambAtSites.filter(a => { const bases = new Set(mk.refs.map(r => refBase(r, a.anchorPos))); return [...setOf(a.cons)].filter(x => bases.has(x)).length >= 2; });
+  const mixed = mk.multiCopy ? [] : ambAtSites.filter(a => { const bases = new Set(mk.refs.map(r => refBase(r, a.anchorPos))); return [...setOf(a.cons)].filter(x => bases.has(x)).length >= 2; });
   if (mixed.length) {
     // find the pair of references whose combination explains every distinguishing position
     const consAt = new Map(); best.ambCompat.forEach(a => consAt.set(a.anchorPos, a.cons));
@@ -529,6 +539,7 @@ function callAllele(cons, mk) {
       const i = flags.findIndex(f => f.level === 'bad'); if (i >= 0) flags.splice(i, 1);
     } else flags.push({ level: 'warn', text: `${singleDiffs.length} of the ${best.diffs.length} differences are seen in only one read.` });
   }
+  if (mk.multiCopy && best.events === 0 && best.tolerated.length) flags.push({ level: 'info', text: `At ${best.tolerated.map(t => 'pos ' + mk.pos(t.anchorPos) + ' (reference ' + t.ref + ', sample ' + t.cons + ')').join(', ')} the reference has a double peak that this sample shows only partly. Treated as a match, because minor copies of a multi-copy gene are not always detected.` });
   return { call, status, flags, sameAs, comps, best, sites: [...allSites].sort((a, b) => a - b) };
 }
 function isCoveredRefPos(cons, comp, rp) { return !comp.uncoveredSet || !comp.uncoveredSet.has(rp); }
@@ -602,7 +613,8 @@ function analyzeGroup(g, panel, opts) {
     if (assembled) res.flags.push({ level: 'info', text: 'Single sequence with no forward/reverse label, treated as a finished consensus (for example from nanopore or an earlier assembly).' });
     else if (used.length === 1) res.flags.push({ level: 'warn', text: 'Only one usable read; the call rests on single-read coverage.' });
     if (used.length === 2 && used[0].reversed === used[1].reversed) res.flags.push({ level: 'warn', text: 'Both reads point the same direction. Check that one forward and one reverse read were supplied.' });
-    const cons = buildConsensus(used);
+    const cons = buildConsensus(used, { strictAmbiguity: mk.multiCopy });
+    if (mk.multiCopy) res.flags.push({ level: 'info', text: `${mk.name} is a multi-copy marker: double peaks are treated as part of the allele and must match the reference exactly, not as a sign of mixed infection.` });
     cons.assembled = assembled;
     res.consensus = cons;
     const conflicts = cons.cols.filter(c => c.status === 'conflict').length;

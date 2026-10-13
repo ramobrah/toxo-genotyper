@@ -88,5 +88,21 @@
   "fwdName": "Apico-F",
   "revName": "Apico-R",
   "source": "Su et al. 2006 (PMID 16643922); This study"
+ },
+ "B1": {
+  "fwd": "TGTTCTGTCCTATCGCAACG",
+  "rev": "ACGGATGCAGTTCCTTTCTG",
+  "multiCopy": true,
+  "source": "Shapiro et al. 2015 Environ Microbiol 17:4177 (outer primers), as used by Zhu et al. 2023",
+  "nested": {
+   "fwd": "TCTTCCCAGACGTGGATTTC",
+   "rev": "CTCGACAATACGCTGCTTGA",
+   "source": "Shapiro et al. 2015 (inner primers)"
+  },
+  "numbering": {
+   "ref": "Type X",
+   "offset": 171,
+   "note": "Positions follow Zhu et al. 2023 Table 3 (position 1 of GenBank KM243024 = 172)"
+  }
  }
 }
