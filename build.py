@@ -9,7 +9,7 @@ ex=[]
 for f in ([] if NOEX else sorted(glob.glob(root+'/examples/*.ab1'))):
     if 'Ref' in f: continue
     ex.append({'name':os.path.basename(f),'text':open(f).read()})
-s=s.replace('/*CORE*/',core).replace('/*PANEL*/',json.dumps(panel)).replace('/*PRIMERS*/',json.dumps(primers)).replace('/*EXAMPLE*/',json.dumps(ex))
+s=s.replace('/*CORE*/',core).replace('/*PANEL*/',json.dumps(panel)).replace('/*PRIMERS*/',json.dumps(primers))
 
 open(root+'/index.html','w').write(s)
 print(len(s))
