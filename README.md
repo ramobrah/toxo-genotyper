@@ -2,7 +2,7 @@
 
 A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from Sanger reads. It replaces the manual Geneious Prime workflow and needs no software installation or computational skills.
 
-**Status:** proof of concept. PCR primers are built in for 11 markers. Reference alleles are built in for 7 of them, taken from 15 *T. gondii* genomes in ToxoDB (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
+**Status:** proof of concept. PCR primers are built in for 11 markers. Reference alleles are built in for 8 of them, taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
 
 ## Reference panel
 
@@ -15,12 +15,14 @@ A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from San
 | SAG3 | 311 bp | 271 bp | 5 |
 | BTUB | 411 bp | 371 bp | 5 |
 | GRA6 | 344 bp | 306 bp | 9 |
-| c22-8, c29-2, L358, Apico | primers only | — | references not yet added |
+| c22-8 | 521 bp | 485 bp | 11 (of 17 genomes) |
+| c29-2, L358, Apico | primers only | — | references not yet added |
 
 Every primer pair was checked against all 15 genomes (both sites found, at most one mismatch). Notes:
 
 - **SAG1:** the forward primer sits in a 27 bp tandem repeat upstream of the start codon and can bind more than one copy. The tool uses the innermost pair of sites, which gives the same 476 bp product in every strain.
 - **alt.SAG2:** the built-in pair is the outer PCR. The inner (nested) pair from Su et al. 2006 gives 546 bp and is listed as a note. If the nested product is what gets sequenced, switch to the inner pair.
+- **c22-8:** both primers were confirmed in a flanked ME49 sequence (521 bp product). The other strains' references are 491–492 bp genome regions that span the stretch between the primers plus a few bases of each primer site.
 - **PK1 and BTUB** references are ToxoDB transcript or gene sequences without flanks; both primer sites lie inside them, and the products match the published sizes.
 
 When several references are identical over the compared region, the call shows the first name in panel order, and the others are listed as identical ("Type I = 5 more").
