@@ -2,7 +2,7 @@
 
 A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from Sanger reads. It replaces the manual Geneious Prime workflow and needs no software installation or computational skills.
 
-**Status:** proof of concept. PCR primers are built in for 11 markers. Reference alleles are built in for 8 of them, plus B1, taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
+**Status:** proof of concept. PCR primers are built in for 12 markers. Reference alleles are built in for all 12: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
 
 ## Reference panel
 
@@ -17,7 +17,9 @@ A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from San
 | GRA6 | 344 bp | 306 bp | 9 |
 | c22-8 | 521 bp | 485 bp | 11 (of 17 genomes) |
 | B1 (multi-copy) | — (inner product ≈ 470 bp) | 439 bp | 12 named alleles from Zhu et al. 2023 |
-| c29-2, L358, Apico | primers only | — | references not yet added |
+| c29-2 | 446 bp | 410 bp | 9 |
+| L358 | 417 bp (published 418) | 381 bp | 6 |
+| Apico | 639 bp (published 640) | 597 bp | 4 (14 strains; ARI, COUG and DOM2 excluded because their available sequence does not span both primers) |
 
 Every primer pair was checked against all 15 genomes (both sites found, at most one mismatch). Notes:
 
@@ -25,6 +27,7 @@ Every primer pair was checked against all 15 genomes (both sites found, at most 
 - **alt.SAG2:** the built-in pair is the outer PCR. The inner (nested) pair from Su et al. 2006 gives 546 bp and is listed as a note. If the nested product is what gets sequenced, switch to the inner pair.
 - **c22-8:** both primers were confirmed in a flanked ME49 sequence (521 bp product). The other strains' references are 491–492 bp genome regions that span the stretch between the primers plus a few bases of each primer site.
 - **B1** is a multi-copy gene (about 35 copies), so double peaks are part of the allele: Types II/III carry C/T at position 366 and C/G at 504. For B1 the tool matches double peaks exactly instead of reading them as mixed infection, and tolerates a reference double peak that a sample shows only partly (a minor copy not detected). References are the named alleles of Zhu et al. 2023 (PLoS NTD 17:e0011829, Table 3): GenBank KM243024, MK988572, KM243022 and OQ850747–OQ850751, plus Type I, Type II/III, Type II/III variant A and Atypical 2 reconstructed from the table's positions. The reconstructed ones should be replaced with the lab's own sequences. `test/b1_table3.js` checks the calls against Table 3 (11/11 rows with definite bases agree).
+- **L358:** some genome assemblies have gaps (runs of N) near this locus; the tool never lets N count as a primer match. References are trimmed to the amplicon plus 500 bp on each side.
 - **PK1 and BTUB** references are ToxoDB transcript or gene sequences without flanks; both primer sites lie inside them, and the products match the published sizes.
 
 **Nested PCR:** Settings has a "Reads come from the inner (nested) PCR" option. For SAG1 and alt.SAG2, which have known inner primers, it compares between the inner primers instead of the outer ones.
