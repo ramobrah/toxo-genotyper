@@ -2,7 +2,7 @@
 
 A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from Sanger reads. It replaces the manual Geneious Prime workflow and needs no software installation or computational skills.
 
-**Status:** proof of concept. PCR primers are built in for 12 markers. Reference alleles are built in for all 12: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
+**Status:** proof of concept. PCR primers are built in for 13 markers. Reference alleles are built in for all 13: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico and 13 for CS3, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
 
 ## Reference panel
 
@@ -20,6 +20,7 @@ A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from San
 | c29-2 | 446 bp | 410 bp | 9 |
 | L358 | 417 bp (published 418) | 381 bp | 6 |
 | Apico | 639 bp (published 640) | 597 bp | 4 (14 strains; ARI, COUG and DOM2 excluded because their available sequence does not span both primers) |
+| CS3 | 794 bp outer, 557 bp inner (Pena et al. 2008) | 754 bp | 9 (13 strains; ARI and FOU excluded, assembly gaps over the amplicon) |
 
 Every primer pair was checked against all 15 genomes (both sites found, at most one mismatch). Notes:
 
@@ -43,7 +44,8 @@ When several references are identical over the compared region, the call shows t
 1. Open the tool's web page (or download `index.html` and double-click it).
 2. Drop in your `.ab1` files, a folder, or a `.zip`. Forward and reverse reads are paired by sample name.
 3. Clean samples are called automatically. Samples marked amber or red come with an explanation and the chromatogram at each flagged position.
-4. Download the allele table (CSV, opens in Excel), the details and the consensus sequences.
+4. Below the allele table, the electronic PCR-RFLP table gives the RFLP genotype; select a call to see its virtual gel.
+5. Download the allele table (CSV, opens in Excel), the RFLP table, the details and the consensus sequences.
 
 Your sequence files are read inside your own browser and are never uploaded anywhere.
 
@@ -57,6 +59,39 @@ Your sequence files are read inside your own browser and are never uploaded anyw
 | Forward + reverse assembly | Overlap alignment with affine gaps; disagreements are excluded and reported |
 | Comparison with references | Alignment to every reference over the region between the marker's PCR primers (or, without primers or with the full-length setting, the region all references cover). References can be amplicons or whole genes |
 | Allele call | Zero differences required. Anything else is flagged for review, with an NCBI BLAST link |
+
+## Electronic PCR-RFLP
+
+The tool also gives a PCR-RFLP genotype, so that sequence results can be compared with the many studies that report only RFLP types. Each consensus is cut in silico with the enzymes of the multilocus PCR-RFLP scheme on the **nested** PCR product (Su et al. 2006, *Int J Parasitol* 36:841; Su et al. 2010, *Parasitology* 137:1, Table 2). A virtual gel is shown for each sample, next to the Type I, II and III patterns.
+
+| Locus | Enzymes | Nested product | Typed from marker |
+|---|---|---|---|
+| SAG1 | Sau96I + HaeII | 390 bp | SAG1 |
+| 5′-SAG2 | MboI | 242 bp | alt.SAG2 (inside the outer product) |
+| 3′-SAG2 | HhaI | 222 bp | 3′-SAG2 |
+| alt.SAG2 | HinfI + TaqI | 546 bp | alt.SAG2 |
+| SAG3 | NciI | 225 bp | SAG3 |
+| BTUB | BsiEI + TaqI | 411 bp | BTUB |
+| GRA6 | MseI | 344 bp | GRA6 |
+| c22-8 | BsmAI + MboII | 521 bp | c22-8 |
+| c29-2 | HpyCH4IV + RsaI | 446 bp | c29-2 |
+| L358 | HaeIII + NlaIII | 418 bp | L358 |
+| PK1 | AvaI + RsaI | 903 bp | PK1 |
+| Apico | AflII + DdeI | 640 bp | Apico |
+| CS3 | NlaIII + MboI | 557 bp | CS3 (Pena et al. 2008) |
+
+How a pattern is named:
+
+- The panel references are cut the same way and grouped by banding pattern. Two patterns count as the same when they have the same visible bands (≥ 30 bp), each within about 5%, which is what a 2.5–3% agarose gel can separate.
+- A group is named after the archetype strains in it (I = GT1, II = ME49, III = VEG). "I or II" means the enzymes at that locus do not separate those types; SAG1 cannot separate II and III, as the paper notes.
+- Non-archetypal groups take the published name (u-1, u-2) when a panel strain carries it in Su et al. Otherwise they are "new".
+- SAG2 (5′+3′) combines the two halves as in Su et al. 2010 Table 3.
+- Where the consensus does not reach the end of the nested product, or has unread bases, those bases are taken from the closest reference. If the pattern there differs between references, the locus is reported as ND (not determined).
+- A cut site that depends on a double peak gives two possible patterns. The site is flagged, because this can mean a mixed infection.
+
+**ToxoDB genotype.** The multilocus e-RFLP profile is matched against the ToxoDB PCR-RFLP genotype reference table (190 genotypes, stored in `src/rflp.json`). Only 5 genotypes in the table have a CS3 type (#8, #11, #13, #108, #232); for the rest CS3 is not used. The tool reports every genotype whose profile fits all loci typed. With all 11 loci typed this is usually one genotype; with only a few loci typed, several can fit and the tool lists them. In the table's SAG1 column, II stands for "II or III". A pattern not seen in the panel ("new") is allowed to match any u- allele. When nothing fits, the closest genotypes and the loci where they differ are given. Typing the panel's own genome strains this way gives GT1 and RH88 #10, ME49 #1, VEG #2, MAS #17, COUG #66, FOU #6, TgCatPRC2 #9, P89 #8 (its CS3 pattern, III, also matches the CS3 type listed for #8), VAND #60, BR9 #42, CAST #28, RUB #98, ARI #5 and DOM2 #203 (ARI, COUG and DOM2 have no Apico reference).
+
+Validation (`node test/rflp_published.js`): the panel's genome strains were typed and compared with the published PCR-RFLP types of the same strains (GT1, RH88, VEG, CAST, COUG, MAS, VAND, TgCatBr5, TgCatBr9; Su et al. 2006 Table 2, Su et al. 2010 Table 3). 79 of 81 agree. Both disagreements are CAST (SAG3 and Apico), where the ToxoDB CAST genome sequence itself carries a different allele from the CAST isolate typed in 2006. `node test/rflp_samples.js <folder or fasta> [nested]` prints the e-RFLP of real samples.
 
 ## Reference panel format
 
@@ -80,6 +115,7 @@ Primers go on a header line with no sequence below it:
 - `src/app.html`: page template; `build.py` combines it with `core.js`, the panel and the primers to produce `index.html`
 - `src/panel.json`: built-in reference alleles
 - `src/primers.json`: built-in PCR primers and their sources
+- `src/rflp.js`, `src/rflp.json`: electronic PCR-RFLP (enzymes, nested primers, published types used for naming and testing)
 - `add_marker.py`, `check_marker.js`: add a marker's ToxoDB sequences to the panel, then check primer sites, alleles and simulated calls (`python3 add_marker.py GRA6 gra6.fasta 'genomic sequence'`, then `node check_marker.js GRA6` and `python3 build.py`)
 - `test/`: Node test runner and a synthetic `.ab1` generator
 
