@@ -121,4 +121,8 @@ Primers go on a header line with no sequence below it:
 - `add_marker.py`, `check_marker.js`: add a marker's ToxoDB sequences to the panel, then check primer sites, alleles and simulated calls (`python3 add_marker.py GRA6 gra6.fasta 'genomic sequence'`, then `node check_marker.js GRA6` and `python3 build.py`)
 - `test/`: Node test runner and a synthetic `.ab1` generator
 
-Developed by VEuPathDB for the *Toxoplasma* research community.
+## Credits
+
+Developed by Omar S. Harb (VEuPathDB, University of Pennsylvania) for the *Toxoplasma* research community. The code was written with assistance from Claude, an AI model made by Anthropic; the design, reference data and validation were directed and checked by the author.
+
+PCR primers, restriction enzymes and published genotypes come from the studies cited above and in `src/primers.json` and `src/rflp.json`. Reference sequences are from ToxoDB and GenBank. The ToxoDB genotype numbers come from the ToxoDB PCR-RFLP genotype reference table.
