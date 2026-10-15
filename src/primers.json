@@ -104,5 +104,19 @@
    "offset": 171,
    "note": "Positions follow Zhu et al. 2023 Table 3 (position 1 of GenBank KM243024 = 172)"
   }
+ },
+ "CS3": {
+  "fwd": "GTGTATCTCCGAGGGGGTCT",
+  "rev": "TGTGACTTCTTCGCATCGAC",
+  "size": 794,
+  "fwdName": "CS3-Fext",
+  "revName": "CS3-Rext",
+  "source": "Pena et al. 2008, Int J Parasitol 38:561-569 (external primers)",
+  "nested": {
+   "fwd": "AGCGGATTTCCAACACTGTC",
+   "rev": "CTGCTGCATTCACAAACTCC",
+   "size": 557,
+   "source": "Pena et al. 2008 (internal primers, CS3-F/CS3-R)"
+  }
  }
 }

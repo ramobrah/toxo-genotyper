@@ -81,6 +81,14 @@ tr:last-child td{border-bottom:0}
 .s-novel,.s-bad{background:var(--bad-soft);color:var(--bad)}
 .s-ok .dot{background:var(--ok)} .s-review .dot{background:var(--warn)} .s-novel .dot,.s-bad .dot{background:var(--bad)}
 .cell .txt{color:var(--ink)}
+.s-incomplete{background:var(--warn-soft);color:var(--warn)} .s-incomplete .dot{background:var(--warn)}
+.s-partial{background:var(--info-soft);color:var(--info)} .s-partial .dot{background:var(--info)}
+.s-none{background:none;color:var(--muted)} .s-none .dot{background:var(--line)}
+.gelwrap{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.gel{flex:none;display:flex;flex-direction:column;gap:6px;min-width:0;max-width:100%}
+.gel svg{display:block;max-width:100%;height:auto;border-radius:6px}
+.gel .cap{font-size:.85rem}
+.frag{font-family:var(--f-mono);font-size:.82rem}
 
 .sheet{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:22px;display:flex;flex-direction:column;gap:22px}
 .sheet-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-start}
@@ -184,6 +192,15 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
     </div>
     <div class="tablebox"><table id="resTable"></table></div>
     <p class="muted" style="font-size:.85rem">Select any call to open its review sheet.</p>
+    <div id="rflpBox" hidden style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <div class="row" style="justify-content:space-between">
+        <div style="display:flex;flex-direction:column;gap:2px"><h2 style="font-size:1.15rem">Electronic PCR-RFLP</h2>
+          <span class="muted" style="font-size:.88rem">Each consensus is cut in silico with the enzymes of the multilocus PCR-RFLP scheme (Su et al. 2006, 2010), on the nested PCR product. The pattern is named by the reference strains that share it: I = GT1, II = ME49, III = VEG.</span></div>
+        <button id="dlRflp">Download RFLP table (.csv)</button>
+      </div>
+      <div class="tablebox"><table id="rflpTable"></table></div>
+      <p class="muted" style="font-size:.85rem">"I or II": the enzymes at this locus do not separate those types. "u-1", "u-2": non-archetypal patterns, named as in Su et al. when a panel strain carries them. "new": matches no reference strain. "ND": part of the PCR product was not sequenced and the references differ there. Select a call to see its virtual gel. ToxoDB genotype: the genotype numbers (#1, #2, …) in the ToxoDB PCR-RFLP reference table whose profile fits every locus typed here; with fewer loci typed, several genotypes can fit.</p>
+    </div>
   </section>
 
   <section id="sheet" class="sheet" hidden aria-live="polite"></section>
@@ -240,8 +257,12 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
 /*CORE*/
 </script>
 <script>
+/*RFLPJS*/
+</script>
+<script>
 const BUILTIN_PANEL = /*PANEL*/;
 const BUILTIN_PRIMERS = /*PRIMERS*/;
+const BUILTIN_RFLP = /*RFLPCFG*/;
 </script>
 <script>
 (() => {
@@ -253,7 +274,8 @@ const STATUS = { ok: 'Called', review: 'Review', novel: 'No match', bad: 'Failed
 let panelRefs = BUILTIN_PANEL.map(r => ({ ...r, source: 'built-in' }));
 let panelPrimers = JSON.parse(JSON.stringify(BUILTIN_PRIMERS));
 const opts = { ...MLST.DEFAULTS, region: 'auto' };
-const rebuildPanel = () => { panel = MLST.buildPanel(panelRefs, panelPrimers, opts); };
+let rflp = null;
+const rebuildPanel = () => { panel = MLST.buildPanel(panelRefs, panelPrimers, opts); rflp = RFLP.buildRflp(panel, BUILTIN_RFLP); };
 let panel; rebuildPanel();
 let reads = [];          // parsed reads currently loaded
 let overrides = {};      // fileName -> {sample}
@@ -341,9 +363,10 @@ async function run() {
   MLST.sortResults(results);
   prog.hidden = true; bar.style.width = '0';
   state = { plan, results };
+  computeRflp();
   const keep = selected != null && state.results[selected] ? selected : results.findIndex(r => r.status !== 'ok');
   selected = keep >= 0 ? keep : (results.length ? 0 : null); selPos = null;
-  renderResults(); renderFiles(); renderSheet();
+  renderResults(); renderRflp(); renderFiles(); renderSheet();
 }
 
 /* ---------- Results table ---------- */
@@ -375,7 +398,87 @@ function renderResults() {
   }).join('');
   const probs = state.plan.problems.length ? `<tr><td colspan="${markers.length + 3}" style="color:var(--bad);font-size:.9rem">${state.plan.problems.map(p => `${esc(p.file)}: ${esc(p.text)}`).join('<br>')}</td></tr>` : '';
   $('#resTable').innerHTML = `<thead>${head}</thead><tbody>${body}${probs}</tbody>`;
-  $('#resTable').querySelectorAll('.cell').forEach(b => b.onclick = () => { selected = +b.dataset.i; selPos = null; renderResults(); renderSheet(); $('#sheet').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#resTable').querySelectorAll('.cell').forEach(b => b.onclick = () => { selected = +b.dataset.i; selPos = null; renderResults(); renderRflp(); renderSheet(); $('#sheet').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+}
+
+/* ---------- Electronic PCR-RFLP ---------- */
+const RSTATUS = { ok: 'Pattern matches a reference strain', review: 'Depends on a double peak', novel: 'Matches no reference strain', incomplete: 'Not determined', partial: 'Only one half of SAG2 sequenced', none: 'No data' };
+function computeRflp() {
+  const { samples } = samplesAndMarkers();
+  state.rflp = samples.map(s => {
+    const byM = {}; for (const [m, i] of Object.entries(s.cells)) byM[m] = state.results[i];
+    const loci = RFLP.rflpForSample(rflp, byM);
+    return { name: s.name, cells: s.cells, loci, geno: RFLP.matchGenotype(rflp, loci) };
+  });
+  state.rflpCols = RFLP.columns(rflp).filter(c => state.rflp.some(x => x.loci[c]));
+}
+function rflpMarker(col) { const c = BUILTIN_RFLP.combined.find(c => c.name === col); return rflp.loci[c ? c.of[0] : col].marker; }
+function renderRflp() {
+  const box = $('#rflpBox');
+  if (!state || !state.rflpCols || !state.rflpCols.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const cols = state.rflpCols;
+  const head = `<tr><th>Sample</th><th>ToxoDB genotype</th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>`;
+  const body = state.rflp.map(s => {
+    const cells = cols.map(c => {
+      const x = s.loci[c]; if (!x) return '<td class="muted">—</td>';
+      const i = s.cells[rflpMarker(c)];
+      return `<td><button class="cell s-${x.status}${i === selected ? ' sel' : ''}" data-i="${i}" title="${esc(RSTATUS[x.status] || '')}"><span class="dot"></span><span class="txt">${esc(x.label)}</span></button></td>`;
+    }).join('');
+    const prof = cols.length > 1 ? `<td class="mono" style="font-size:.85rem;white-space:nowrap">${cols.map(c => s.loci[c] ? esc(s.loci[c].label) : '·').join(' / ')}</td>` : '';
+    const g = s.geno;
+    const geno = g ? `<td style="min-width:11rem"><span class="cell s-${g.status === 'ok' ? 'ok' : g.status === 'novel' ? 'novel' : 'review'}" style="cursor:default" title="${esc(g.matches.length > 6 ? 'Consistent with ' + g.matches.map(i => '#' + i).join(', ') : '')}"><span class="dot"></span><span class="txt">${esc(g.label)}</span></span>${g.notes.length ? `<div class="muted" style="font-size:.8rem;margin-top:4px;max-width:22rem">${esc(g.notes.join(' '))}</div>` : ''}</td>` : '<td class="muted">—</td>';
+    return `<tr><td style="font-weight:600;white-space:nowrap">${esc(s.name)}</td>${geno}${cells}</tr>`;
+  }).join('');
+  $('#rflpTable').innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+  $('#rflpTable').querySelectorAll('button.cell').forEach(b => b.onclick = () => { selected = +b.dataset.i; selPos = null; renderResults(); renderRflp(); renderSheet(); const g = $('#gelSec'); (g || $('#sheet')).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+}
+function rflpRows() {
+  const cols = state.rflpCols;
+  const rows = [['Sample', ...cols, 'RFLP profile', 'ToxoDB genotype', 'Genotypes consistent', 'Notes']];
+  for (const s of state.rflp) rows.push([s.name, ...cols.map(c => s.loci[c] ? s.loci[c].label : ''), cols.map(c => s.loci[c] ? s.loci[c].label : '').join(' / '), s.geno ? s.geno.label : '', s.geno ? s.geno.matches.map(i => '#' + i).join(' ') : '',
+    cols.flatMap(c => s.loci[c] && s.loci[c].notes && s.loci[c].status !== 'ok' ? [c + ': ' + s.loci[c].notes.join(' ')] : []).join(' | ')]);
+  return rows;
+}
+/** Virtual agarose gel: ladder, reference lanes, sample lane. Migration is linear in log(size). */
+function gelSVG(lanes, ladder, minBand) {
+  const top = 34, bot = 250, hi = Math.log10(1500), lo = Math.log10(25);
+  const y = bp => top + (hi - Math.log10(Math.max(bp, 25))) / (hi - lo) * (bot - top);
+  const lw = 54, x0 = 44, W = x0 + lw * lanes.length + 8, H = bot + 14;
+  const band = (x, bp, color, faint) => `<rect x="${x + 7}" y="${(y(bp) - 2).toFixed(1)}" width="${lw - 14}" height="4" rx="1.5" fill="${color}" opacity="${faint ? .35 : .95}"><title>${bp} bp</title></rect>`;
+  let g = `<rect width="${W}" height="${H}" fill="#1B1E22"/>`;
+  let lastY = -99;
+  for (const b of ladder.bands) { if (y(b) - lastY < 10) continue; lastY = y(b); g += `<text x="${x0 - 6}" y="${(y(b) + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#9AA3AB" font-family="IBM Plex Mono,monospace">${b}</text>`; }
+  lanes.forEach((ln, k) => {
+    const x = x0 + k * lw;
+    g += `<rect x="${x + 5}" y="${top - 12}" width="${lw - 10}" height="5" fill="#2B3036"/>`;
+    g += `<text x="${x + lw / 2}" y="14" text-anchor="middle" font-size="9.5" font-weight="${ln.sample ? 700 : 500}" fill="${ln.sample ? '#7FE0C9' : '#D5DBE0'}" font-family="IBM Plex Sans,system-ui,sans-serif">${esc(ln.label)}</text>`;
+    const color = ln.sample ? '#7FE0C9' : ln.ladder ? '#9AA3AB' : '#E8ECEF';
+    for (const b of ln.bands) g += band(x, b, color, b < minBand);
+    if (ln.extra) for (const b of ln.extra) g += `<rect x="${x + 7}" y="${(y(b) - 2).toFixed(1)}" width="${lw - 14}" height="4" rx="1.5" fill="none" stroke="#E2B04F" stroke-dasharray="3 2"><title>${b} bp if the uncertain site is cut</title></rect>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Virtual gel">${g}</svg>`;
+}
+function rflpSection(r) {
+  if (!state.rflp) return '';
+  const s = state.rflp.find(x => x.cells[r.marker] === state.results.indexOf(r)); if (!s) return '';
+  const loci = Object.values(rflp.loci).filter(L => L.marker === r.marker && s.loci[L.name]);
+  if (!loci.length) return '';
+  const blocks = loci.map(L => {
+    const x = s.loci[L.name];
+    const lanes = [{ label: 'Ladder', bands: rflp.cfg.ladder.bands, ladder: true }];
+    const shown = new Set();
+    for (const t of ['I', 'II', 'III']) { const g = L.groups.find(g => g.archetypes.includes(t)); if (g && !shown.has(g)) { shown.add(g); lanes.push({ label: g.archetypes.join('/'), bands: g.bands }); } }
+    if (x.group && !shown.has(x.group)) lanes.push({ label: x.group.label, bands: x.group.bands });
+    if (x.bands) lanes.push({ label: 'Sample', bands: x.bands, sample: true, extra: x.bandsMax ? x.bandsMax.filter(b => !x.bands.includes(b)) : null });
+    const who = x.group ? `Same pattern as ${x.group.members.join(', ')}.` : '';
+    return `<div class="gel"><div class="row" style="gap:8px"><strong>${esc(L.name)}</strong><span class="cell s-${x.status}" style="cursor:default"><span class="dot"></span><span class="txt">${esc(x.label)}</span></span></div>
+      ${x.bands ? gelSVG(lanes, rflp.cfg.ladder, rflp.cfg.minBand) : ''}
+      <div class="cap muted" style="max-width:420px">${esc(L.enzymes.join(' + '))} on the ${L.size} bp nested product${L.gel ? ` (${esc(L.gel)} gel)` : ''}. ${x.bands ? `Fragments: <span class="frag">${x.bands.join(', ')}</span> bp${x.bands.some(b => b < rflp.cfg.minBand) ? ` (faint: under ${rflp.cfg.minBand} bp, usually not visible)` : ''}. ` : ''}${esc(who)} ${L.note ? esc(L.note) : ''}</div>
+      ${x.notes && x.notes.length ? `<ul class="flags" style="max-width:420px">${x.notes.map(n => `<li class="${x.status === 'ok' ? 'info' : x.status === 'novel' ? 'bad' : 'warn'}"><span>${esc(n)}</span></li>`).join('')}</ul>` : ''}</div>`;
+  }).join('');
+  return `<div id="gelSec" style="display:flex;flex-direction:column;gap:10px"><h3>Electronic PCR-RFLP</h3><div class="gelwrap">${blocks}</div>
+    <p class="muted" style="font-size:.85rem">Reference lanes show the patterns of the panel strains (I = GT1, II = ME49, III = VEG). Band positions are approximate. A dashed band appears only if an uncertain site (double peak) is cut.</p></div>`;
 }
 
 /* ---------- Review sheet ---------- */
@@ -446,6 +549,7 @@ function renderSheet() {
     </div>
     <div style="display:flex;flex-direction:column;gap:10px"><h3>Positions that distinguish the references</h3>${grid}
       <p class="muted" style="font-size:.85rem">Green: same as ${esc(r.best.ref.name)}. Red: differs. Amber: ambiguity code. A dot means the consensus does not reach that position.</p></div>
+    ${rflpSection(r)}
     <div style="display:flex;flex-direction:column;gap:10px">${traceBlock}</div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <div class="row" style="justify-content:space-between"><h3>Consensus sequence</h3>
@@ -576,6 +680,7 @@ $('#dlDetails').onclick = () => {
   save('mlst_details.csv', rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 };
 $('#dlFasta').onclick = () => save('mlst_consensus.fasta', state.results.filter(r => r.consensus).map(r => `>${r.sample.replace(/\s+/g, '_')}_${r.marker} call=${r.call.replace(/\s+/g, '_')}\n${r.consensus.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
+$('#dlRflp').onclick = () => save('mlst_rflp.csv', rflpRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 $('#clearAll').onclick = () => { reads = []; overrides = {}; state = null; selected = null; run(); };
 
 async function save(name, text) {
