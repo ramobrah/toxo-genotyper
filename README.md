@@ -1,6 +1,8 @@
-# Toxo MLST Allele Caller
+# Toxo Genotyper
 
-A free, browser-based tool for calling *Toxoplasma gondii* MLST alleles from Sanger reads. It replaces the manual Geneious Prime workflow and needs no software installation or computational skills.
+*Sanger MLST allele calls, electronic PCR-RFLP and ToxoDB genotypes*
+
+A free, browser-based tool for genotyping *Toxoplasma gondii* from Sanger reads of the standard typing markers. It assembles forward and reverse reads and calls the allele at each marker, replacing the manual Geneious Prime workflow. It also cuts each sequence in silico to give the PCR-RFLP type, and matches the multilocus profile to a ToxoDB genotype number. No software installation or computational skills are needed.
 
 **Status:** proof of concept. PCR primers are built in for 13 markers. Reference alleles are built in for all 13: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico and 13 for CS3, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Toxo MLST Allele Caller</title>
+<title>Toxo Genotyper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -152,9 +152,9 @@ footer{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padd
 <div class="wrap">
   <header class="top">
     <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
-      <span class="label">Toxoplasma gondii · Sanger MLST</span>
-      <h1>Toxo MLST Allele Caller</h1>
-      <p class="sub">Assembles forward and reverse reads, compares each consensus to the reference alleles, and calls the allele. Positions that need an expert eye are flagged, with the chromatogram one click away. Your files are read in this browser and are never uploaded.</p>
+      <span class="label">Toxoplasma gondii · Sanger MLST · electronic PCR-RFLP · ToxoDB genotypes</span>
+      <h1>Toxo Genotyper</h1>
+      <p class="sub">Genotype <em>Toxoplasma gondii</em> from Sanger reads of the standard typing markers. The tool assembles forward and reverse reads and calls the allele at each marker. It also cuts each sequence in silico to give the PCR-RFLP type, and matches the multilocus profile to a ToxoDB genotype number. Positions that need an expert eye are flagged, with the chromatogram one click away. Your files are read in this browser and are never uploaded.</p>
     </div>
     <span class="panelbadge" id="panelBadge"></span>
   </header>
@@ -1538,7 +1538,7 @@ $('#refInput').onchange = async e => {
   Object.assign(panelPrimers, prs);
   rebuildPanel(); panelBadge(); renderRefs(); toast(`${recs.length} reference(s) and ${np} primer pair(s) loaded`); e.target.value = ''; run();
 };
-$('#dlRefs').onclick = () => save('mlst_reference_panel.fasta', Object.entries(panelPrimers).map(([m, p]) => `>${m}|primers|${p.fwd}|${p.rev}`).join('\n') + '\n' + panelRefs.map(r => `>${r.marker}|${r.name}${r.note ? '|' + r.note : ''}\n${r.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
+$('#dlRefs').onclick = () => save('toxo_genotyper_reference_panel.fasta', Object.entries(panelPrimers).map(([m, p]) => `>${m}|primers|${p.fwd}|${p.rev}`).join('\n') + '\n' + panelRefs.map(r => `>${r.marker}|${r.name}${r.note ? '|' + r.note : ''}\n${r.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
 
 /* ---------- Export ---------- */
 function csvCell(v) { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
@@ -1553,7 +1553,7 @@ function summaryRows() {
   }
   return rows;
 }
-$('#dlSummary').onclick = () => save('mlst_allele_calls.csv', summaryRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
+$('#dlSummary').onclick = () => save('toxo_genotyper_alleles.csv', summaryRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 $('#copyTable').onclick = () => copy(summaryRows().map(r => r.map(c => String(c).replace(/\t|\n/g, ' ')).join('\t')).join('\n'), 'Table copied. Paste it into Excel.');
 $('#dlDetails').onclick = () => {
   const rows = [['Sample', 'Marker', 'Call', 'Status', 'Closest reference', 'Identical references', 'Differences from closest', 'Difference list (reference position: ref>sample)', 'Next closest', 'Consensus length', 'Read disagreements excluded', 'Flags', 'Files', 'Panel references compared']];
@@ -1563,10 +1563,10 @@ $('#dlDetails').onclick = () => {
       (c => c ? `${c.ref.name} (${c.events})` : '')(r.comps.find(c => c.events > r.best.events)), r.stats.length, r.stats.conflicts + r.stats.indelConflicts,
       r.flags.map(f => f.text).join(' | '), r.files.join('; '), r.comps.map(c => `${c.ref.name}:${c.events}`).join(' ')]);
   }
-  save('mlst_details.csv', rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n');
+  save('toxo_genotyper_details.csv', rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 };
-$('#dlFasta').onclick = () => save('mlst_consensus.fasta', state.results.filter(r => r.consensus).map(r => `>${r.sample.replace(/\s+/g, '_')}_${r.marker} call=${r.call.replace(/\s+/g, '_')}\n${r.consensus.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
-$('#dlRflp').onclick = () => save('mlst_rflp.csv', rflpRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
+$('#dlFasta').onclick = () => save('toxo_genotyper_consensus.fasta', state.results.filter(r => r.consensus).map(r => `>${r.sample.replace(/\s+/g, '_')}_${r.marker} call=${r.call.replace(/\s+/g, '_')}\n${r.consensus.seq.match(/.{1,70}/g).join('\n')}`).join('\n') + '\n');
+$('#dlRflp').onclick = () => save('toxo_genotyper_rflp_genotypes.csv', rflpRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 $('#clearAll').onclick = () => { reads = []; overrides = {}; state = null; selected = null; run(); };
 
 async function save(name, text) {
