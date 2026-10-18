@@ -4,7 +4,7 @@
 
 A free, browser-based tool for genotyping *Toxoplasma gondii* from Sanger reads of the standard typing markers. It assembles forward and reverse reads and calls the allele at each marker, replacing the manual Geneious Prime workflow. It also cuts each sequence in silico to give the PCR-RFLP type, and matches the multilocus profile to a ToxoDB genotype number. No software installation or computational skills are needed.
 
-**Status:** proof of concept. PCR primers are built in for 13 markers. Reference alleles are built in for all 13: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico and 13 for CS3, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
+**Status:** proof of concept. PCR primers are built in for 14 markers. Reference alleles are built in for all 14: B1 (from published B1 sequences) and 11 others taken from 15 *T. gondii* genomes in ToxoDB (17 for c22-8, which adds CtCo5 and TgCATBr5; 14 for Apico and 13 for CS3, see below) (ARI, BR9, CAST, COUG, DOM2, FOU, GT1, MAS, ME49, P89, PRC2, RH88, RUB, VAND, VEG). PK1 also includes the lab's own Type I, II, III, X and COUG references.
 
 ## Reference panel
 
@@ -13,6 +13,7 @@ A free, browser-based tool for genotyping *Toxoplasma gondii* from Sanger reads 
 | PK1 | 902–903 bp | 845 bp | 10 |
 | SAG1 | 476 bp | 435 bp | 6 |
 | alt.SAG2 | 726–729 bp | 686 bp | 7 |
+| 5′-SAG2 | 242 bp (nested, inside the alt.SAG2 outer product) | 202 bp | 3 |
 | 3′-SAG2 | 326–327 bp | 287 bp | 5 |
 | SAG3 | 311 bp | 271 bp | 5 |
 | BTUB | 411 bp | 371 bp | 5 |
@@ -33,7 +34,7 @@ Every primer pair was checked against all 15 genomes (both sites found, at most 
 - **L358:** some genome assemblies have gaps (runs of N) near this locus; the tool never lets N count as a primer match. References are trimmed to the amplicon plus 500 bp on each side.
 - **PK1 and BTUB** references are ToxoDB transcript or gene sequences without flanks; both primer sites lie inside them, and the products match the published sizes.
 
-**Nested PCR:** Settings has a "Reads come from the inner (nested) PCR" option. For SAG1 and alt.SAG2, which have known inner primers, it compares between the inner primers instead of the outer ones.
+**Nested PCR:** detected automatically. For markers with known inner primers (SAG1, alt.SAG2, 3′-SAG2, SAG3, B1, CS3), when a sample's consensus lies within the inner PCR product, the sample is compared between the inner primers, and the review sheet says so. Reads of the outer product are compared over the outer region as before. Settings still has a "Reads come from the inner (nested) PCR" option that forces the inner region for every sample. 5′-SAG2 (Howe et al. 1997; inner primers from Su et al. 2010) is its own marker: reads named 5'SAG2F/R are paired and called. When two overlapping markers fit a read, the one whose PCR product length is closest to the read length is used. `node test/nested_auto.js` checks the automatic switch.
 
 **Multi-sequence FASTA files** (for example a GenBank download) are read record by record: the sample name comes from the record title (the "isolate …" part when present), and records without a forward/reverse label are treated as finished sequences, one row each.
 
