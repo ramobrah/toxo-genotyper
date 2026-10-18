@@ -103,12 +103,17 @@ tr:last-child td{border-bottom:0}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.9rem}
 .kv dt{color:var(--muted)} .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .bars{display:flex;flex-direction:column;gap:6px}
-.bar{display:grid;grid-template-columns:7.5rem 1fr 2.2rem;gap:10px;align-items:center;font-size:.9rem}
+.bar{display:grid;grid-template-columns:7.5rem 1fr 2.2rem 3.4rem;gap:10px;align-items:center;font-size:.9rem}
 .bar .track{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden}
 .bar .track i{display:block;height:100%;background:var(--muted)}
 .bar.best .track i{background:var(--accent)}
 .bar .v{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:.85rem}
 
+.cmap{width:100%;height:auto;display:block;overflow:visible}
+.cmap .cm-t{font:9px var(--f-mono);fill:var(--muted)} .cmap .cm-l{font:10px var(--f-body);fill:var(--muted)}
+.cmap .cm-win{fill:var(--accent);opacity:.55} .cmap .cm-cons{fill:var(--sunk);stroke:var(--line)} .cmap .cm-cov{fill:var(--accent);opacity:.8}
+.cmap .cm-read{fill:var(--info);opacity:.8} .cmap .cm-trim{fill:var(--bad);opacity:.35}
+.cmap .cm-d{fill:var(--bad)} .cmap .cm-a{fill:var(--warn)} .cmap .cm-u{fill:var(--info)} .cmap .cm-x{fill:var(--muted);opacity:.6} .cmap .cm-clk{cursor:pointer}
 .snp{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
 .snp table{width:auto;font-family:var(--f-mono);font-size:.85rem}
 .snp th,.snp td{padding:4px 7px;text-align:center;border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
@@ -371,6 +376,17 @@ async function run() {
 }
 
 /* ---------- Results table ---------- */
+// Archetypal type of an allele call: I, II, III (or X for the lab's PK1 reference) when the sample's sequence is
+// identical to that archetype's reference over the compared region; null when it matches only non-archetypal strains.
+const ARCH = { GT1: 'I', RH88: 'I', ME49: 'II', VEG: 'III' };
+function seqType(r) {
+  if (!r || !r.consensus || r.status === 'novel' || r.status === 'bad' || /^Mixed|^No exact/.test(r.call)) return null;
+  const names = [...r.call.split(' / '), ...(r.sameAs || [])];
+  const t = new Set();
+  for (const n of names) { const m = n.match(/^Type (I|II|III|X|II\/III)$/); if (m) m[1].split('/').forEach(x => t.add(x)); else if (ARCH[n.split(' (')[0]]) t.add(ARCH[n.split(' (')[0]]); }
+  return t.size ? ['I', 'II', 'III', 'X'].filter(x => t.has(x)).join('/') : null;
+}
+const callText = r => { const t = seqType(r); return t && !/^Type /.test(r.call) ? `${t} (${r.call})` : r.call; };
 function samplesAndMarkers() {
   const samples = [], seen = new Map();
   state.results.forEach((r, i) => { const k = MLST.sampleKey(r.sample); if (!seen.has(k)) { seen.set(k, { name: r.sample, cells: {} }); samples.push(seen.get(k)); } seen.get(k).cells[r.marker] = i; });
@@ -390,9 +406,9 @@ function renderResults() {
     const cells = markers.map(m => {
       const i = s.cells[m]; if (i === undefined) return '<td class="muted">—</td>';
       const r = state.results[i];
-      return `<td><button class="cell s-${r.status}${i === selected ? ' sel' : ''}" data-i="${i}" aria-label="${esc(r.sample)} ${esc(m)}: ${esc(r.call)}"><span class="dot"></span><span class="txt">${esc(r.call)}</span>${r.sameAs && r.sameAs.length ? `<span class="muted" style="font-size:.78rem" title="${esc(r.sameAs.join(', '))}">= ${r.sameAs.length} more</span>` : ''}</button></td>`;
+      return `<td><button class="cell s-${r.status}${i === selected ? ' sel' : ''}" data-i="${i}" aria-label="${esc(r.sample)} ${esc(m)}: ${esc(r.call)}"><span class="dot"></span><span class="txt">${seqType(r) && !/^Type /.test(r.call) ? `<b>${esc(seqType(r))}</b> <span class="muted">${esc(r.call)}</span>` : esc(r.call)}</span>${r.sameAs && r.sameAs.length ? `<span class="muted" style="font-size:.78rem" title="${esc(r.sameAs.join(', '))}">= ${r.sameAs.length} more</span>` : ''}</button></td>`;
     }).join('');
-    const prof = markers.length > 1 ? `<td class="mono" style="font-size:.85rem">${markers.map(m => s.cells[m] !== undefined ? esc(state.results[s.cells[m]].call) : '?').join(' · ')}</td>` : '';
+    const prof = markers.length > 1 ? `<td class="mono" style="font-size:.85rem">${markers.map(m => s.cells[m] !== undefined ? esc(seqType(state.results[s.cells[m]]) || state.results[s.cells[m]].call) : '?').join(' · ')}</td>` : '';
     const att = markers.map(m => s.cells[m]).filter(i => i !== undefined).map(i => state.results[i]).filter(r => r.status !== 'ok')
       .map(r => `<span>${esc(r.marker)}: ${esc((r.flags.find(f => f.level !== 'info') || {}).text || STATUS[r.status])}</span>`).join('<br>');
     return `<tr><td style="font-weight:600;white-space:nowrap">${esc(s.name)}</td>${cells}${prof}<td style="font-size:.88rem;min-width:16rem">${att || '<span class="muted">—</span>'}</td></tr>`;
@@ -498,6 +514,51 @@ function reviewPositions(r) {
   r.best.unresolved.filter(u => sites.has(u.anchorPos)).forEach(u => add(u.consPos, u.anchorPos, 'u', `${mk.pos(u.anchorPos)} ?`));
   return [...out.values()].sort((a, b) => a.consPos - b.consPos);
 }
+/** % identity over the compared region, as Geneious reports it: identical bases / aligned columns (Ns and excluded bases left out). */
+function identity(c) {
+  const subs = c.diffs.filter(d => d.type === 'substitution').length, indel = c.diffs.length - subs;
+  const n = c.covered - c.unresolved.filter(u => u.ref !== '-').length;
+  return n > 0 ? 100 * (n - subs) / (n + indel) : 0;
+}
+/** Contig map: reads laid along the consensus, as in Geneious's contig view. */
+function contigMap(r) {
+  const cons = r.consensus, L = cons.seq.length, used = r.used;
+  const stubs = used.map(u => { if (!u.trimmed) return [0, 0]; const a = u.trimmed[0], b = u.rawLen - u.trimmed[1]; return u.reversed ? [b, a] : [a, b]; });
+  const left = Math.max(0, ...stubs.map(s => s[0])), right = Math.max(0, ...stubs.map(s => s[1]));
+  const W = 1000, padL = 92, sc = (W - padL - 8) / (L + left + right), X = i => padL + (left + i) * sc;
+  const ext = used.map((u, k) => { const ks = cons.cols.map((c, i) => c.src.some(s => s[0] === k) ? i : -1).filter(i => i >= 0); return [ks[0], ks[ks.length - 1]]; });
+  // compared region in consensus coordinates
+  const ref = r.best.ref, [ws, we] = ref.win; let cs = null, ce = null;
+  for (let p = ws; p <= we; p++) { const c = r.best.refToCons[p]; if (c >= 0) { if (cs === null) cs = c; ce = c; } }
+  const rows = []; let y = 14;
+  const tick = Math.max(25, Math.ceil(L / 8 / 25) * 25);
+  let g = '';
+  for (let i = 0; i <= L; i += tick) g += `<text x="${X(i)}" y="10" class="cm-t" text-anchor="middle">${i + 1}</text>`;
+  y = 18;
+  if (cs !== null) g += `<rect x="${X(cs)}" y="${y}" width="${Math.max(1, X(ce + 1) - X(cs))}" height="5" rx="2" class="cm-win"><title>Compared region: ${ce - cs + 1} bp${r.region === 'inner' ? ' (between the inner primers)' : ''}</title></rect><text x="${padL - 6}" y="${y + 5}" class="cm-l" text-anchor="end">Compared</text>`;
+  y += 12;
+  // consensus marks
+  g += `<text x="${padL - 6}" y="${y + 7}" class="cm-l" text-anchor="end">Consensus</text><rect x="${X(0)}" y="${y + 2}" width="${L * sc}" height="6" class="cm-cons"/>`;
+  const marks = reviewPositions(r);
+  cons.cols.forEach((c, i) => { if (c.status === 'conflict' || c.status === 'indel-conflict') g += `<rect x="${X(i)}" y="${y}" width="${Math.max(2, sc)}" height="10" class="cm-x"><title>Position ${i + 1}: reads disagree (${c.pair || 'base in one read only'}), excluded</title></rect>`; });
+  for (const m of marks) g += `<rect x="${X(m.consPos) - 1}" y="${y - 2}" width="${Math.max(3, sc)}" height="14" class="cm-${m.kind} cm-clk" data-ci="${m.consPos}"><title>${esc(m.label)} (select to see the traces)</title></rect>`;
+  y += 16;
+  // coverage
+  g += `<text x="${padL - 6}" y="${y + 9}" class="cm-l" text-anchor="end">Coverage</text>`;
+  let run = 0; for (let i = 1; i <= L; i++) { if (i === L || cons.cols[i].cov !== cons.cols[run].cov) { const h = cons.cols[run].cov === 2 ? 12 : 6; g += `<rect x="${X(run)}" y="${y + 12 - h}" width="${(i - run) * sc}" height="${h}" class="cm-cov"><title>${cons.cols[run].cov} read${cons.cols[run].cov > 1 ? 's' : ''}: positions ${run + 1}–${i}</title></rect>`; run = i; } }
+  y += 20;
+  // reads
+  used.forEach((u, k) => {
+    const [a, b] = ext[k], [sl, sr] = stubs[k];
+    const lab = u.dir === 'F' ? 'Forward' : u.dir === 'R' ? 'Reverse' : 'Read';
+    g += `<text x="${padL - 6}" y="${y + 8}" class="cm-l" text-anchor="end">${lab} ${u.reversed ? '←' : '→'}</text>`;
+    if (sl) g += `<rect x="${X(a - sl)}" y="${y + 2}" width="${sl * sc}" height="6" rx="1" class="cm-trim"><title>${sl} low-quality bases trimmed</title></rect>`;
+    g += `<rect x="${X(a)}" y="${y}" width="${(b - a + 1) * sc}" height="10" rx="2" class="cm-read"><title>${esc(u.fileName)}: ${u.trimLen} bases used</title></rect>`;
+    if (sr) g += `<rect x="${X(b + 1)}" y="${y + 2}" width="${sr * sc}" height="6" rx="1" class="cm-trim"><title>${sr} low-quality bases trimmed</title></rect>`;
+    y += 16;
+  });
+  return `<svg class="cmap" viewBox="0 0 ${W} ${y + 2}" role="img" aria-label="Contig map">${g}</svg>`;
+}
 function renderSheet() {
   const el = $('#sheet');
   if (selected == null || !state || !state.results[selected]) { el.hidden = true; return; }
@@ -509,7 +570,7 @@ function renderSheet() {
   }
   const mk = r.mk || panel.markers[r.marker];
   const maxE = Math.max(1, ...r.comps.map(c => c.events));
-  const bars = r.comps.map((c, k) => `<div class="bar${k === 0 ? ' best' : ''}"><span>${esc(c.ref.name)}</span><span class="track"><i style="width:${Math.max(2, 100 * c.events / maxE)}%"></i></span><span class="v">${c.events}</span></div>`).join('');
+  const bars = r.comps.map((c, k) => `<div class="bar${k === 0 ? ' best' : ''}"><span>${esc(c.ref.name)}</span><span class="track"><i style="width:${Math.max(2, 100 * c.events / maxE)}%"></i></span><span class="v">${c.events}</span><span class="v muted">${identity(c).toFixed(1)}%</span></div>`).join('');
   // SNP grid: reference-distinguishing positions + any position where the sample differs
   const pos = new Set(r.sites);
   r.best.diffs.forEach(d => { if (d.anchorPos >= 0) pos.add(d.anchorPos); });
@@ -537,12 +598,14 @@ function renderSheet() {
     `<h3>Chromatograms</h3><p class="muted" style="font-size:.9rem">These reads are text files, so there are no traces to show. Load the original .ab1 files to review peaks here.</p>`;
   el.innerHTML = `
     <div class="sheet-head">
-      <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="label">${esc(r.marker)} · ${esc(r.sample)}</span><div class="call">${esc(r.call)}</div></div>
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="label">${esc(r.marker)} · ${esc(r.sample)}</span><div class="call">${seqType(r) && !/^Type /.test(r.call) ? `Type ${esc(seqType(r))} <span class="muted" style="font-weight:500;font-size:1.1rem">(${esc(r.call)})</span>` : esc(r.call)}</div></div>
       <span class="cell s-${r.status}" style="cursor:default"><span class="dot"></span><span class="txt">${STATUS[r.status]}</span></span>
     </div>
     ${r.flags.length ? `<ul class="flags">${r.flags.map(f => `<li class="${f.level}"><span>${esc(f.text)}</span></li>`).join('')}</ul>` : `<ul class="flags"><li class="info"><span>Exact match over the full comparison region with forward and reverse reads in agreement. No review needed.</span></li></ul>`}
+    <div style="display:flex;flex-direction:column;gap:8px"><h3>Contig map</h3>${contigMap(r)}
+      <p class="muted" style="font-size:.85rem">Reads laid along the consensus: thick bars are the bases used, thin pink ends were trimmed for low quality. Coverage is tall where both reads agree on a base. Marks: red = differs from ${esc(r.best.ref.name)}, amber = double peak, blue = unresolved, grey = reads disagree (excluded). Select a mark to see its traces.</p></div>
     <div class="grid2">
-      <div style="display:flex;flex-direction:column;gap:10px;min-width:0"><h3>Differences from each reference</h3><div class="bars">${bars}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:0"><h3>Differences from each reference</h3><div class="bar muted" style="font-size:.75rem"><span></span><span></span><span class="v">diffs</span><span class="v">identity</span></div><div class="bars">${bars}</div>
         <p class="muted" style="font-size:.85rem">Compared over ${r.best.winLen} bp. ${mk.posNote ? esc(mk.posNote) + '.' : 'Positions are numbered from the start of the compared region.'} Indels count once per event.</p></div>
       <div style="display:flex;flex-direction:column;gap:10px;min-width:0"><h3>Reads and consensus</h3><dl class="kv">${used}
         <dt>Consensus</dt><dd>${st.length} bp, ${st.twoRead} bp covered by both reads</dd>
@@ -557,7 +620,7 @@ function renderSheet() {
         <div class="row"><button id="copySeq">Copy</button><a class="btn" target="_blank" rel="noopener" href="${blastURL(r.consensus.seq, r.sample + '_' + r.marker)}">BLAST at NCBI ↗</a></div></div>
       <div class="seqbox" id="seqbox">${esc(r.consensus.seq)}</div>
     </div>`;
-  el.querySelectorAll('.chip,.snp th.clk').forEach(b => b.onclick = () => { const ci = +b.dataset.ci; if (ci < 0) return; selPos = ci; el.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', +c.dataset.ci === ci)); drawTraces(r); });
+  el.querySelectorAll('.chip,.snp th.clk,.cm-clk').forEach(b => b.onclick = () => { const ci = +b.dataset.ci; if (ci < 0) return; selPos = ci; el.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', +c.dataset.ci === ci)); drawTraces(r); });
   $('#copySeq').onclick = () => copy(`>${r.sample}_${r.marker}\n${r.consensus.seq}\n`, 'Consensus copied');
   if (hasTr) drawTraces(r);
 }
@@ -663,7 +726,7 @@ function summaryRows() {
   for (const s of samples) {
     const rs = markers.map(m => s.cells[m] !== undefined ? state.results[s.cells[m]] : null);
     const worst = rs.filter(Boolean).map(r => r.status).sort((a, b) => ['ok', 'review', 'novel', 'bad'].indexOf(b) - ['ok', 'review', 'novel', 'bad'].indexOf(a))[0];
-    rows.push([s.name, ...rs.map(r => r ? r.call : ''), ...(markers.length > 1 ? [rs.map(r => r ? r.call : '?').join(' / ')] : []), STATUS[worst],
+    rows.push([s.name, ...rs.map(r => r ? callText(r) : ''), ...(markers.length > 1 ? [rs.map(r => r ? (seqType(r) || r.call) : '?').join(' / ')] : []), STATUS[worst],
       rs.filter(r => r && r.status !== 'ok').map(r => `${r.marker}: ${(r.flags.find(f => f.level !== 'info') || {}).text || ''}`).join(' | ')]);
   }
   return rows;
@@ -671,10 +734,10 @@ function summaryRows() {
 $('#dlSummary').onclick = () => save('toxo_genotyper_alleles.csv', summaryRows().map(r => r.map(csvCell).join(',')).join('\n') + '\n');
 $('#copyTable').onclick = () => copy(summaryRows().map(r => r.map(c => String(c).replace(/\t|\n/g, ' ')).join('\t')).join('\n'), 'Table copied. Paste it into Excel.');
 $('#dlDetails').onclick = () => {
-  const rows = [['Sample', 'Marker', 'Call', 'Status', 'Closest reference', 'Identical references', 'Differences from closest', 'Difference list (reference position: ref>sample)', 'Next closest', 'Consensus length', 'Read disagreements excluded', 'Flags', 'Files', 'Panel references compared']];
+  const rows = [['Sample', 'Marker', 'Call', 'Type (I/II/III)', 'Status', '% identity to closest', 'Closest reference', 'Identical references', 'Differences from closest', 'Difference list (reference position: ref>sample)', 'Next closest', 'Consensus length', 'Read disagreements excluded', 'Flags', 'Files', 'Panel references compared']];
   for (const r of state.results) {
-    if (!r.consensus) { rows.push([r.sample, r.marker, r.call, STATUS[r.status], '', '', '', '', '', '', '', r.flags.map(f => f.text).join(' | '), r.files.join('; '), '']); continue; }
-    rows.push([r.sample, r.marker, r.call, STATUS[r.status], r.best.ref.name, (r.sameAs || []).join('; '), r.best.events, r.best.diffs.map(d => `${(r.mk || panel.markers[r.marker]).pos(d.anchorPos)}:${d.ref}>${d.cons}`).join(' '),
+    if (!r.consensus) { rows.push([r.sample, r.marker, r.call, '', STATUS[r.status], '', '', '', '', '', '', '', '', r.flags.map(f => f.text).join(' | '), r.files.join('; '), '']); continue; }
+    rows.push([r.sample, r.marker, r.call, seqType(r) || '', STATUS[r.status], identity(r.best).toFixed(1), r.best.ref.name, (r.sameAs || []).join('; '), r.best.events, r.best.diffs.map(d => `${(r.mk || panel.markers[r.marker]).pos(d.anchorPos)}:${d.ref}>${d.cons}`).join(' '),
       (c => c ? `${c.ref.name} (${c.events})` : '')(r.comps.find(c => c.events > r.best.events)), r.stats.length, r.stats.conflicts + r.stats.indelConflicts,
       r.flags.map(f => f.text).join(' | '), r.files.join('; '), r.comps.map(c => `${c.ref.name}:${c.events}`).join(' ')]);
   }
