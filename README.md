@@ -61,7 +61,9 @@ Your sequence files are read inside your own browser and are never uploaded anyw
 | Mixed / heterozygous positions (.ab1 only) | Second peak ≥ 0.33 × main peak, written as an IUPAC code |
 | Forward + reverse assembly | Overlap alignment with affine gaps; disagreements are excluded and reported |
 | Comparison with references | Alignment to every reference over the region between the marker's PCR primers (or, without primers or with the full-length setting, the region all references cover). References can be amplicons or whole genes |
+| Contig map and identity | Each sample's review sheet shows the reads laid along the consensus (coverage, trimmed ends, flagged positions; select a mark to see its traces) and the % identity to every reference, as in Geneious |
 | Allele call | Zero differences required. Anything else is flagged for review, with an NCBI BLAST link |
+| Type label | When the allele is identical to a Type I, II or III reference (GT1/RH88, ME49, VEG) over the compared region, the table shows the type next to the reference name, e.g. **III** VEG. Non-archetypal alleles show the reference name only |
 
 ## Electronic PCR-RFLP
 
