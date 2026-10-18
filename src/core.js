@@ -183,7 +183,7 @@ function findPrimer(seq, primer, maxMM = 3) {
     const L = pr.length;
     for (let i = 0; i + L <= seq.length; i++) {
       let mm = 0;
-      for (let k = 0; k < L && mm <= maxMM; k++) if (!compatible(seq[i + k], pr[k])) mm++;
+      for (let k = 0; k < L && mm <= maxMM; k++) if (seq[i + k] === 'N' || !compatible(seq[i + k], pr[k])) mm++; // N (assembly gap) never counts as a primer match
       if (mm <= maxMM && (!best || mm < best.mm)) best = { pos: i, end: i + L, strand, mm };
     }
   }
@@ -198,7 +198,7 @@ function findPrimerHits(seq, primer, maxMM = 3) {
     const L = pr.length;
     for (let i = 0; i + L <= seq.length; i++) {
       let mm = 0;
-      for (let k = 0; k < L && mm <= maxMM; k++) if (!compatible(seq[i + k], pr[k])) mm++;
+      for (let k = 0; k < L && mm <= maxMM; k++) if (seq[i + k] === 'N' || !compatible(seq[i + k], pr[k])) mm++; // N (assembly gap) never counts as a primer match
       if (mm <= maxMM) hits.push({ pos: i, end: i + L, strand, mm });
     }
   }
@@ -249,6 +249,9 @@ function buildPanel(refs, primers = {}, opts = {}) {
       if (both) {
         anchor = both;
         if (both.primerHits.fwd.strand === '-') { both.seq = revcomp(both.seq); both.primerHits = locatePrimers(both.seq, pr); }
+        // inner-primer panel: keep the outer panel's orientation (inner primers can point the other way), so reads match both
+        const ref0 = opts.orientAs && opts.orientAs[mk.name];
+        if (ref0) { const ks = kmerSet(ref0); if (sharedKmers(ks, revcomp(both.seq)) > sharedKmers(ks, both.seq)) { both.seq = revcomp(both.seq); both.primerHits = locatePrimers(both.seq, pr); } }
       }
       mk.refs = [anchor, ...mk.refs.filter(r => r !== anchor)];
     }
@@ -302,6 +305,14 @@ function buildPanel(refs, primers = {}, opts = {}) {
     for (let p = mk.window[0]; p <= mk.window[1]; p++) {
       const bases = mk.refs.map(r => r.fromAnchor[p] >= 0 ? r.seq[r.fromAnchor[p]] : '-');
       if (new Set(bases).size > 1) mk.sites.push(p);
+    }
+  }
+  if (!opts.nested && !opts._inner) {
+    const withInner = Object.keys(markers).filter(n => primers[n] && primers[n].nested);
+    if (withInner.length && region !== 'full') {
+      const orientAs = {}; for (const n of withInner) orientAs[n] = markers[n].anchor;
+      const inner = buildPanel(refs.filter(r => withInner.includes(r.marker)), primers, { ...opts, nested: true, _inner: true, orientAs });
+      for (const n of withInner) if (inner.markers[n]) markers[n].inner = inner.markers[n];
     }
   }
   return { markers, primers };
@@ -360,12 +371,24 @@ const sampleKey = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const DEFAULTS = { mottCutoff: 0.05, peakRatio: 0.33, minKmers: 15, minTrimmedLen: 100 };
 
 function assignMarker(read, panel) {
-  let best = null;
+  let best = null; const scores = {};
   for (const mk of Object.values(panel.markers)) {
     const f = sharedKmers(mk.kmersAll, read.seq), r = sharedKmers(mk.kmersAll, revcomp(read.seq));
-    const score = Math.max(f, r);
+    const score = Math.max(f, r); scores[mk.name] = score;
+    // equal scores: a read of a short product nested in a longer marker (5′-SAG2 inside alt.SAG2) fits both; prefer the smaller marker
     if (!best || score > best.score) best = { marker: mk.name, score, reversed: r > f };
   }
+  if (!best) return best;
+  // overlapping markers (5′-SAG2 lies inside alt.SAG2): a read fits both, so among markers that fit almost as well,
+  // take the one whose PCR product length is closest to the read length
+  const span = mk => { const w = [mk.window, mk.inner && mk.inner.window].filter(Boolean).map(w => w[1] - w[0] + 1); return w; };
+  const near = Object.values(panel.markers).filter(mk => scores[mk.name] >= 0.7 * best.score && scores[mk.name] > 0);
+  if (near.length > 1) {
+    const L = read.seq.length, d = mk => Math.min(...span(mk).map(w => Math.abs(w - L)));
+    const pick = near.sort((a, b) => d(a) - d(b))[0];
+    if (pick.name !== best.marker) { const f = sharedKmers(pick.kmersAll, read.seq), r = sharedKmers(pick.kmersAll, revcomp(read.seq)); best = { marker: pick.name, score: scores[pick.name], reversed: r > f }; }
+  }
+  best.scores = scores;
   return best;
 }
 
@@ -566,6 +589,8 @@ function planGroups(readsIn, panel, opts = {}, overrides = {}) {
     const asg = assignMarker(raw, panel);
     const r = { ...raw, parsed: nm, sample: ov.sample ?? nm.sample, dir: nm.dir, isRef: ov.isRef ?? nm.isRef,
       marker: ov.marker || (asg && asg.score >= opts.minKmers ? asg.marker : null) || nm.marker, kmerScore: asg ? asg.score : 0, notes: [] };
+    // overlapping markers (5′-SAG2 lies inside alt.SAG2): when the file name names one that fits the sequence almost as well, use it
+    if (!ov.marker && nm.marker && asg && asg.marker !== nm.marker && (asg.scores[nm.marker] || 0) >= 0.9 * asg.score && asg.scores[nm.marker] >= opts.minKmers) r.marker = nm.marker;
     if (nm.marker && asg && asg.score >= opts.minKmers && nm.marker !== asg.marker && !ov.marker) r.notes.push(`File name says ${nm.marker} but the sequence matches ${asg.marker}; using ${asg.marker}.`);
     if (!asg || asg.score < opts.minKmers) r.notes.push('Sequence does not match any marker in the reference panel.');
     reads.push(r);
@@ -620,7 +645,21 @@ function analyzeGroup(g, panel, opts) {
     const conflicts = cons.cols.filter(c => c.status === 'conflict').length;
     res.stats = { length: cons.seq.length, twoRead: cons.cols.filter(c => c.cov === 2).length, conflicts, indelConflicts: cons.cols.filter(c => c.status === 'indel-conflict').length,
       mixed: cons.cols.filter(c => c.status === 'mixed' || c.status === 'ambiguous').length };
-    const c = callAllele(cons, mk);
+    let c = callAllele(cons, mk), cmpMk = mk;
+    if (mk.inner && c.best.uncovered > 0) {
+      // nested PCR: reads of the inner product cannot reach the outer primers. If the consensus lies within the inner
+      // product (± 10 bp), compare between the inner primers instead, so the missing ends are not counted against it.
+      const ref = c.best.ref, h = locatePrimers(ref.seq, mk.inner.primers);
+      const covered = c.best.refToCons.map((v, i) => v >= 0 ? i : -1).filter(i => i >= 0);
+      if (h.fwd && h.rev && covered.length) {
+        const lo = Math.min(h.fwd.pos, h.rev.pos), hi = Math.max(h.fwd.end, h.rev.end) - 1;
+        if (covered[0] >= lo - 10 && covered[covered.length - 1] <= hi + 10) {
+          c = callAllele(cons, mk.inner); cmpMk = mk.inner;
+          res.flags.push({ level: 'info', text: `These reads cover the inner (nested) ${mk.name} PCR product, so the sample was compared between the inner primers (${mk.inner.window[1] - mk.inner.window[0] + 1} bp).` });
+        }
+      }
+    }
+    res.mk = cmpMk; res.region = cmpMk === mk ? "outer" : "inner";
     Object.assign(res, { call: c.call, status: c.status, sameAs: c.sameAs, comps: c.comps, best: c.best, sites: c.sites });
     res.flags.push(...c.flags);
     return res;

@@ -109,7 +109,7 @@
   },
   {
    "name": "5′-SAG2",
-   "marker": "alt.SAG2",
+   "marker": "5′-SAG2",
    "fwd": "GAAATGTTTCAGGTTGCTGC",
    "rev": "GCAAGAGCGAACTTGAACAC",
    "size": 242,
@@ -117,7 +117,10 @@
     "MboI"
    ],
    "gel": "2.5%",
-   "note": "Amplified from inside the alt.SAG2 outer product (Howe et al. 1997)."
+   "note": "Typed from 5′-SAG2 reads, or from alt.SAG2 reads when no 5′-SAG2 reads are given (the 5′-SAG2 product lies inside the alt.SAG2 outer product; Howe et al. 1997).",
+   "alsoFrom": [
+    "alt.SAG2"
+   ]
   },
   {
    "name": "3′-SAG2",

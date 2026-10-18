@@ -413,7 +413,7 @@ function computeRflp() {
   });
   state.rflpCols = RFLP.columns(rflp).filter(c => state.rflp.some(x => x.loci[c]));
 }
-function rflpMarker(col) { const c = BUILTIN_RFLP.combined.find(c => c.name === col); return rflp.loci[c ? c.of[0] : col].marker; }
+function rflpMarker(col, s) { const c = BUILTIN_RFLP.combined.find(c => c.name === col); const n = c ? c.of.find(n => s && s.loci[n]) || c.of[0] : col; return (s && s.loci[n] && s.loci[n].fromMarker) || rflp.loci[n].marker; }
 function renderRflp() {
   const box = $('#rflpBox');
   if (!state || !state.rflpCols || !state.rflpCols.length) { box.hidden = true; return; }
@@ -423,7 +423,7 @@ function renderRflp() {
   const body = state.rflp.map(s => {
     const cells = cols.map(c => {
       const x = s.loci[c]; if (!x) return '<td class="muted">—</td>';
-      const i = s.cells[rflpMarker(c)];
+      const i = s.cells[rflpMarker(c, s)];
       return `<td><button class="cell s-${x.status}${i === selected ? ' sel' : ''}" data-i="${i}" title="${esc(RSTATUS[x.status] || '')}"><span class="dot"></span><span class="txt">${esc(x.label)}</span></button></td>`;
     }).join('');
     const prof = cols.length > 1 ? `<td class="mono" style="font-size:.85rem;white-space:nowrap">${cols.map(c => s.loci[c] ? esc(s.loci[c].label) : '·').join(' / ')}</td>` : '';
@@ -463,7 +463,7 @@ function gelSVG(lanes, ladder, minBand) {
 function rflpSection(r) {
   if (!state.rflp) return '';
   const s = state.rflp.find(x => x.cells[r.marker] === state.results.indexOf(r)); if (!s) return '';
-  const loci = Object.values(rflp.loci).filter(L => L.marker === r.marker && s.loci[L.name]);
+  const loci = Object.values(rflp.loci).filter(L => s.loci[L.name] && s.loci[L.name].fromMarker === r.marker);
   if (!loci.length) return '';
   const blocks = loci.map(L => {
     const x = s.loci[L.name];
@@ -488,7 +488,7 @@ function blastURL(seq, name) {
 }
 function baseSpan(b) { return `<span class="b-${'ACGT'.includes(b) ? b : 'x'}">${esc(b)}</span>`; }
 function reviewPositions(r) {
-  const mk = panel.markers[r.marker];
+  const mk = r.mk || panel.markers[r.marker];
   // positions worth looking at: differences from best reference, ambiguous bases, unresolved bases at distinguishing sites
   const out = new Map();
   const add = (consPos, anchorPos, kind, label) => { if (consPos == null || consPos < 0) return; if (!out.has(consPos)) out.set(consPos, { consPos, anchorPos, kind, label }); };
@@ -507,7 +507,7 @@ function renderSheet() {
     el.innerHTML = `<div class="sheet-head"><div><span class="label">${esc(r.marker)}</span><div class="call">${esc(r.sample)}: failed</div></div></div><ul class="flags">${r.flags.map(f => `<li class="${f.level}"><span>${esc(f.text)}</span></li>`).join('')}</ul>`;
     return;
   }
-  const mk = panel.markers[r.marker];
+  const mk = r.mk || panel.markers[r.marker];
   const maxE = Math.max(1, ...r.comps.map(c => c.events));
   const bars = r.comps.map((c, k) => `<div class="bar${k === 0 ? ' best' : ''}"><span>${esc(c.ref.name)}</span><span class="track"><i style="width:${Math.max(2, 100 * c.events / maxE)}%"></i></span><span class="v">${c.events}</span></div>`).join('');
   // SNP grid: reference-distinguishing positions + any position where the sample differs
@@ -674,7 +674,7 @@ $('#dlDetails').onclick = () => {
   const rows = [['Sample', 'Marker', 'Call', 'Status', 'Closest reference', 'Identical references', 'Differences from closest', 'Difference list (reference position: ref>sample)', 'Next closest', 'Consensus length', 'Read disagreements excluded', 'Flags', 'Files', 'Panel references compared']];
   for (const r of state.results) {
     if (!r.consensus) { rows.push([r.sample, r.marker, r.call, STATUS[r.status], '', '', '', '', '', '', '', r.flags.map(f => f.text).join(' | '), r.files.join('; '), '']); continue; }
-    rows.push([r.sample, r.marker, r.call, STATUS[r.status], r.best.ref.name, (r.sameAs || []).join('; '), r.best.events, r.best.diffs.map(d => `${panel.markers[r.marker].pos(d.anchorPos)}:${d.ref}>${d.cons}`).join(' '),
+    rows.push([r.sample, r.marker, r.call, STATUS[r.status], r.best.ref.name, (r.sameAs || []).join('; '), r.best.events, r.best.diffs.map(d => `${(r.mk || panel.markers[r.marker]).pos(d.anchorPos)}:${d.ref}>${d.cons}`).join(' '),
       (c => c ? `${c.ref.name} (${c.events})` : '')(r.comps.find(c => c.events > r.best.events)), r.stats.length, r.stats.conflicts + r.stats.indelConflicts,
       r.flags.map(f => f.text).join(' | '), r.files.join('; '), r.comps.map(c => `${c.ref.name}:${c.events}`).join(' ')]);
   }

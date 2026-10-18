@@ -60,7 +60,8 @@ const strainOf = n => n.split(' (')[0];
 function buildRflp(panel, cfg) {
   const loci = {};
   for (const L of cfg.loci) {
-    const mk = panel.markers[L.marker];
+    const from = [L.marker, ...(L.alsoFrom || [])].find(m => panel.markers[m]);
+    const mk = from && panel.markers[from];
     if (!mk) continue;
     const refs = [];
     for (const r of mk.refs) {
@@ -108,11 +109,14 @@ function buildRflp(panel, cfg) {
 
 /** Rebuild the sample's nested product: the sample's own bases where it was sequenced, a reference outside. */
 function sampleProduct(res, L, entry) {
-  if (!entry) { for (const c of res.comps) { entry = L.refs.find(x => x.ref === c.ref); if (entry) break; } }
+  if (!entry) { for (const c of res.comps) { entry = L.refs.find(x => x.name === c.ref.name); if (entry) break; } }
   if (!entry) return null;
-  const refAmp = entry.amp; // panel orientation, as the consensus
-  const cons = res.consensus;
-  const al = M.align(refAmp, cons.seq);
+  const refAmp = entry.amp; // panel orientation of the marker the locus was built from
+  let cons = res.consensus;
+  let al = M.align(refAmp, cons.seq);
+  // the consensus may come from another marker whose panel faces the other way (5′-SAG2 typed from alt.SAG2 reads)
+  const alR = M.align(refAmp, M.revcomp(cons.seq));
+  if (alR.score > al.score) { al = alR; cons = { seq: M.revcomp(cons.seq), cols: [...cons.cols].reverse() }; }
   const both = al.cols.map((c, k) => c[0] >= 0 && c[1] >= 0 ? k : -1).filter(k => k >= 0);
   if (!both.length) return null;
   const first = both[0], last = both[both.length - 1];
@@ -196,7 +200,12 @@ function combine(R, parts, names) {
 /** All RFLP loci for one sample: results = allele-calling results of that sample keyed by marker. */
 function rflpForSample(R, byMarker) {
   const out = {};
-  for (const L of Object.values(R.loci)) { const res = byMarker[L.marker]; out[L.name] = res ? rflpForResult(R, res, L.name) : null; }
+  for (const L of Object.values(R.loci)) {
+    const from = [L.marker, ...(L.alsoFrom || [])].find(m => byMarker[m]);
+    const x = from ? rflpForResult(R, byMarker[from], L.name) : null;
+    if (x) x.fromMarker = from;
+    out[L.name] = x;
+  }
   for (const c of R.cfg.combined) out[c.name] = c.of.every(n => out[n] === null) ? null : combine(R, c.of.map(n => out[n]), c.of);
   return out;
 }

@@ -44,10 +44,22 @@
    "source": "Su et al. 2006 (PMID 16643922); Lehmann et al. (2000) and this study"
   }
  },
+ "5′-SAG2": {
+  "fwd": "GAAATGTTTCAGGTTGCTGC",
+  "rev": "GCAAGAGCGAACTTGAACAC",
+  "size": 242,
+  "source": "Su et al. 2010 (Parasitology 137:1), Table 2, internal primers; Howe et al. 1997. The external PCR is the alt.SAG2 external PCR."
+ },
  "3′-SAG2": {
   "fwd": "TCTGTTCTCCGAAGTGACTCC",
   "rev": "TCAAAGCGTGCATTATCGC",
-  "source": "Provided by Omar Harb from the lab protocol (Oct 2026)"
+  "source": "Provided by Omar Harb from the lab protocol (Oct 2026)",
+  "nested": {
+   "fwd": "ATTCTCATGCCTCCGCTTC",
+   "rev": "AACGTTTCACGAAGGCACAC",
+   "size": 222,
+   "source": "Su et al. 2010 (Parasitology 137:1), Table 2, internal primers"
+  }
  },
  "PK1": {
   "fwd": "CGCAAAGGGAGACAATCAGT",
@@ -79,7 +91,13 @@
   "size": 311,
   "fwdName": "P43S1",
   "revName": "P43AS1",
-  "source": "Su et al. 2006 (PMID 16643922); Grigg et al. (2001b)"
+  "source": "Su et al. 2006 (PMID 16643922); Grigg et al. (2001b)",
+  "nested": {
+   "fwd": "TCTTGTCGGGTGTTCACTCA",
+   "rev": "CACAAGGAGACCGAGAAGGA",
+   "size": 225,
+   "source": "Su et al. 2010 (Parasitology 137:1), Table 2, internal primers"
+  }
  },
  "Apico": {
   "fwd": "TGCAAATTCTTGAATTCTCAGTT",
